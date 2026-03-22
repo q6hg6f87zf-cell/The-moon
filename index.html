@@ -819,25 +819,43 @@ let state = JSON.parse(localStorage.getItem('moonSquadDB')) || { npcs: [] };
 function saveState() { localStorage.setItem('moonSquadDB', JSON.stringify(state)); }
 
 // ── TAB NAVIGATION ──
-function switchTab(tabId) {
-    // Hide all panels
-    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-    // Remove active styling from all buttons
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    
-    // Show the clicked panel
-    document.getElementById(`tab-${tabId}`).classList.add('active');
-    event.currentTarget.classList.add('active');
 
-    // Fire the rendering engines
-    if (tabId === 'classes' && typeof renderClasses === 'function') renderClasses();
-    if (tabId === 'arsenal' && typeof renderArsenal === 'function') renderArsenal();
-    if (tabId === 'bestiary' && typeof renderBestiary === 'function') renderBestiary();
-    if (tabId === 'npcs' && typeof renderNpcs === 'function') renderNpcs();
-    if (tabId === 'villains' && typeof renderVillains === 'function') renderVillains();
-    if (tabId === 'rules' && typeof renderRules === 'function') renderRules();
-    if (tabId === 'ref' && typeof renderRef === 'function') renderRef();
+function switchTab(tabId) {
+    // 1. Hide all panels
+    const panels = document.querySelectorAll('.panel');
+    panels.forEach(p => p.style.display = 'none');
+    
+    // 2. Deactivate all buttons
+    const buttons = document.querySelectorAll('.tab-btn');
+    buttons.forEach(b => b.classList.remove('active'));
+    
+    // 3. Show the one we want
+    const targetPanel = document.getElementById('tab-' + tabId);
+    if (targetPanel) {
+        targetPanel.style.display = 'block';
+    }
+
+    // 4. Find the button that was clicked and make it active
+    // We search by text to be 100% sure we find the right one
+    buttons.forEach(b => {
+        if (b.getAttribute('onclick').includes(tabId)) {
+            b.classList.add('active');
+        }
+    });
+
+    // 5. Run the specific render functions
+    if (tabId === 'classes') renderClasses();
+    if (tabId === 'arsenal') renderArsenal();
+    if (tabId === 'bestiary') renderBestiary();
+    if (tabId === 'npcs') renderNpcs();
+    if (tabId === 'villains') renderVillains();
+    if (tabId === 'rules') {
+        if (typeof initRules === 'function') initRules();
+        else renderRules();
+    }
+    if (tabId === 'ref') renderRef();
 }
+
 
 }
 
