@@ -803,6 +803,7 @@ const NPC_DISPOSITIONS = {
     hostile: {label:"Hostile",  color:"#ef5350",bg:"rgba(60,10,10,0.8)",  icon:"⚔️"},
     unknown: {label:"Unknown",  color:"#9c27b0",bg:"rgba(30,10,50,0.8)",  icon:"❓"},
 };
+
 const NPC_STATUSES = {
     active: {label:"Active",  color:"#66bb6a"},
     missing:{label:"Missing", color:"#ffd54f"},
@@ -821,6 +822,7 @@ function saveState() { localStorage.setItem('moonSquadDB', JSON.stringify(state)
 // ── TAB NAVIGATION ──
 
 function switchTab(tabId) {
+
     // 1. Hide all panels
     const panels = document.querySelectorAll('.panel');
     panels.forEach(p => p.style.display = 'none');
@@ -856,8 +858,6 @@ function switchTab(tabId) {
     if (tabId === 'ref') renderRef();
 }
 
-
-}
 
 // ── CLASSES ──
 let currentClass = "Warrior";
