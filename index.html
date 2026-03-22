@@ -1181,7 +1181,6 @@ function renderBestiary() {
         }
         container.innerHTML = html;
     }
-}
 
 // ═══════════════════════════════════════════════════
 // NPCs ENGINE
@@ -1235,21 +1234,12 @@ function renderNpcs() {
         });
     }
     container.innerHTML = html;
-    
-    const newSearchInput = document.getElementById('npcSearch');
-    if (s && newSearchInput) {
-        newSearchInput.focus();
-        newSearchInput.setSelectionRange(newSearchInput.value.length, newSearchInput.value.length);
-    }
 }
 
 function openNpcEditor(id) {
     let n = id === 'new' ? {id: Date.now(), name:"", fac:"", location:"", disp:"neutral", status:"active", notes:"", relationships:[]} : state.npcs.find(x => x.id === id);
     if (!n.relationships) n.relationships = [];
-    
-    // Store temp data on the window object so we can add memory rows dynamically without saving to DB yet
     window.tempNpc = JSON.parse(JSON.stringify(n));
-
     renderNpcModal(id === 'new');
 }
 
@@ -1265,46 +1255,28 @@ function renderNpcModal(isNew) {
                     <div style="font-weight:bold; font-size:0.95rem; color:#fff;">${isNew ? '👁 New NPC' : '👁 Edit — ' + n.name}</div>
                     <button style="background:none; border:none; color:var(--dim); font-size:1.2rem; cursor:pointer;" onclick="document.getElementById('npcModal').remove()">✕</button>
                 </div>
-                
                 <label class="label">Name</label>
-                <input class="input" id="editNpcName" value="${n.name}" onchange="window.tempNpc.name=this.value" placeholder="NPC name...">
-                
+                <input class="input" id="editNpcName" value="${n.name}" onchange="window.tempNpc.name=this.value">
                 <label class="label">Faction</label>
-                <select class="select" id="editNpcFac" onchange="window.tempNpc.fac=this.value">
-                    <option value="">— Select Faction —</option>
-                    ${NPC_FACTIONS.map(f => `<option value="${f}" ${n.fac === f ? 'selected' : ''}>${f}</option>`).join('')}
-                </select>
-
-                <label class="label">Location</label>
-                <input class="input" id="editNpcLoc" value="${n.location || ''}" onchange="window.tempNpc.location=this.value" placeholder="Where are they now...">
-                
+                <input class="input" id="editNpcFac" value="${n.fac}" onchange="window.tempNpc.fac=this.value">
                 <label class="label">Disposition</label>
-                <select class="select" id="editNpcDisp" onchange="window.tempNpc.disp=this.value">
+                <select class="select" onchange="window.tempNpc.disp=this.value">
                     ${Object.keys(NPC_DISPOSITIONS).map(k => `<option value="${k}" ${n.disp === k ? 'selected' : ''}>${NPC_DISPOSITIONS[k].label}</option>`).join('')}
                 </select>
-
-                <label class="label">Status</label>
-                <select class="select" id="editNpcStatus" onchange="window.tempNpc.status=this.value">
-                    ${Object.keys(NPC_STATUSES).map(k => `<option value="${k}" ${n.status === k ? 'selected' : ''}>${NPC_STATUSES[k].label}</option>`).join('')}
-                </select>
-                
                 <label class="label">Notes</label>
-                <textarea class="textarea" id="editNpcNotes" onchange="window.tempNpc.notes=this.value" placeholder="Who are they, what do they want...">${n.notes}</textarea>
-                
-                <div class="section-title" style="margin-top:12px;">Player Memory</div>
+                <textarea class="textarea" onchange="window.tempNpc.notes=this.value">${n.notes}</textarea>
+                <div class="section-title">Player Memory</div>
                 ${n.relationships.map((r, i) => `
-                    <div style="display:flex; gap:6px; margin-bottom:6px; align-items:center;">
-                        <input class="input" style="flex:0 0 100px; margin-bottom:0;" value="${r.player}" onchange="window.tempNpc.relationships[${i}].player=this.value" placeholder="@username">
-                        <input class="input" style="flex:1; margin-bottom:0;" value="${r.memory}" onchange="window.tempNpc.relationships[${i}].memory=this.value" placeholder="What they remember...">
-                        <button style="background:none; border:none; color:var(--dim); cursor:pointer;" onclick="window.tempNpc.relationships.splice(${i},1); renderNpcModal(${isNew})">✕</button>
+                    <div style="display:flex; gap:6px; margin-bottom:6px;">
+                        <input class="input" style="flex:0 0 100px;" value="${r.player}" onchange="window.tempNpc.relationships[${i}].player=this.value" placeholder="@">
+                        <input class="input" style="flex:1;" value="${r.memory}" onchange="window.tempNpc.relationships[${i}].memory=this.value">
+                        <button onclick="window.tempNpc.relationships.splice(${i},1); renderNpcModal(${isNew})">✕</button>
                     </div>
                 `).join('')}
-                <button class="btn-sm" style="background:rgba(138,90,220,0.15); color:var(--purple-light); margin-bottom:16px; margin-top:6px;" onclick="window.tempNpc.relationships.push({player:'', memory:''}); renderNpcModal(${isNew})">+ Add Player Memory</button>
-
-                <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                    <button class="btn" style="width:auto; flex:1;" onclick="saveNpc(${isNew})">✦ Save</button>
-                    ${!isNew ? `<button class="btn" style="width:auto; background:rgba(60,10,10,0.8); color:var(--red);" onclick="deleteNpc(${n.id})">Remove</button>` : ''}
-                    <button class="btn" style="width:auto; background:rgba(20,16,50,0.8); color:var(--dim);" onclick="document.getElementById('npcModal').remove()">Cancel</button>
+                <button class="btn-sm" onclick="window.tempNpc.relationships.push({player:'', memory:''}); renderNpcModal(${isNew})">+ Memory</button>
+                <div style="display:flex; gap:8px; margin-top:10px;">
+                    <button class="btn" onclick="saveNpc(${isNew})">Save</button>
+                    <button class="btn" style="background:var(--red);" onclick="deleteNpc(${n.id})">Delete</button>
                 </div>
             </div>
         </div>
@@ -1313,35 +1285,10 @@ function renderNpcModal(isNew) {
 }
 
 function saveNpc(isNew) {
-    // Manually grab the final values in case they typed without blurring
-    window.tempNpc.name = document.getElementById('editNpcName').value;
-    window.tempNpc.fac = document.getElementById('editNpcFac').value;
-    window.tempNpc.location = document.getElementById('editNpcLoc').value;
-    window.tempNpc.notes = document.getElementById('editNpcNotes').value;
-
-    if (!window.tempNpc.name.trim()) return alert("Name required.");
-
-    if (isNew) {
-        state.npcs.unshift(window.tempNpc);
-    } else {
-        const idx = state.npcs.findIndex(x => x.id === window.tempNpc.id);
-        if (idx !== -1) state.npcs[idx] = window.tempNpc;
-    }
-
-    saveState();
-    document.getElementById('npcModal').remove();
-    renderNpcs();
+    if (isNew) state.npcs.unshift(window.tempNpc);
+    else { const idx = state.npcs.findIndex(x => x.id === window.tempNpc.id); state.npcs[idx] = window.tempNpc; }
+    saveState(); document.getElementById('npcModal').remove(); renderNpcs();
 }
-
-function deleteNpc(id) {
-    if (confirm("Remove NPC?")) {
-        state.npcs = state.npcs.filter(x => x.id !== id);
-        saveState();
-        document.getElementById('npcModal').remove();
-        renderNpcs();
-    }
-}
-
 
 // ═══════════════════════════════════════════════════
 // VILLAINS ENGINE
