@@ -1281,15 +1281,55 @@ function renderCreate(){
 const c=STATE.creation;
 const trait=c.traitRoll?getTrait(c.traitRoll):null;
 const base=c.cls?CLASS_BASE_STATS[c.cls]:null;
-return`<div class="card"> <div class="section-title">New Character — 7-Roll Creation</div> <div style="margin-bottom:8px"><label class="label">TikTok Username</label><input class="input" value="${esc(c.username)}" oninput="STATE.creation.username=this.value" placeholder="@username"></div> <div style="margin-bottom:8px"><label class="label">Character Name</label> <select class="select" onchange="STATE.creation.charname=this.value"> <option value="">— Select Name —</option> ${NAMES.filter(n=>!STATE.players.find(p=>p.charname===n&&!p.isDead)).map(n=>`<option${c.charname===n?' selected':''}>${n}</option>`).join('')} </select></div> <div style="margin-bottom:8px"><label class="label">Class</label> <select class="select" onchange="STATE.creation={...STATE.creation,cls:this.value,repRoll:null,traitRoll:null,weaponRoll:null,skillRoll:null,shadowRoll:null,enchantRoll:null,destinyRoll:null};render()"> <option value="">— Select Class —</option> ${CLASSES.map(cl=>`<option value="${cl}"${c.cls===cl?' selected':''}>${CLASS_ICON[cl]} ${cl} — HP ${CLASS_HP[cl]}</option>`).join('')} </select></div> ${base?`<div class="roll-box" style="margin-bottom:8px">
-<div style="font-size:0.6rem;color:var(--dim);text-transform:uppercase;letter-spacing:2px;margin-bottom:6px;font-family:Arial,sans-serif">Base Stats</div>
-<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
-${Object.entries(base).map(([s,v])=>{const col=STAT_COLORS[s];const bonus=trait&&PRIMARY_STAT[c.cls]===s?trait.bonus:0;return`<div style="text-align:center"><div style="font-size:0.56rem;color:var(--dim);font-family:Arial,sans-serif">${s}</div><div style="font-size:0.9rem;font-weight:bold;color:${col}">${v+bonus}${bonus?`<span style="font-size:0.5rem;color:var(--green)"> +${bonus}</span>`:''}</div></div>`;}).join('')}
-</div></div>`:'' } <div style="margin-bottom:8px"><label class="label">Origin</label> <select class="select" onchange="STATE.creation.origin=this.value"> <option value="">— Select Origin —</option> ${ORIGINS.map(o=>`<option${c.origin===o?' selected':''}>${o}</option>`).join('')} </select></div> <div style="margin-bottom:12px"><label class="label">Notes</label><textarea class="textarea" oninput="STATE.creation.notes=this.value" placeholder="Player notes...">${esc(c.notes)}</textarea></div> ${c.cls?`<div class="roll-box"><div class="section-title">Creation Rolls — ${c.cls}</div>${renderCreationRolls(c)}</div>`:''}
-<button class="btn btn-purple btn-full" style="margin-top:12px" onclick="addPlayer()">✦ Add to The Hollow Realm</button>
 
-  </div>`;
+return `<div class="card"> 
+  <div class="section-title">New Character — 7-Roll Creation</div> 
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px">
+    <div>
+      <label class="label">Player PFP</label>
+      <div style="display:flex; gap:8px; align-items:center">
+        <div class="avatar-preview">
+          ${c.pfpImage ? `<img src="${c.pfpImage}">` : `<span style="font-size:1.2rem">👤</span>`}
+        </div>
+        <label class="btn btn-sm" style="flex:1; text-align:center; padding:10px 0">
+          Upload
+          <input type="file" accept="image/*" style="display:none" onchange="handleImageUpload(this, 'pfpImage')">
+        </label>
+      </div>
+    </div>
+    <div>
+      <label class="label">Character Art</label>
+      <div style="display:flex; gap:8px; align-items:center">
+        <div class="avatar-preview">
+          ${c.charImage ? `<img src="${c.charImage}">` : `<span style="font-size:1.2rem">🪆</span>`}
+        </div>
+        <label class="btn btn-sm" style="flex:1; text-align:center; padding:10px 0">
+          Upload
+          <input type="file" accept="image/*" style="display:none" onchange="handleImageUpload(this, 'charImage')">
+        </label>
+      </div>
+    </div>
+  </div>
+  <div style="margin-bottom:8px"><label class="label">TikTok Username</label><input class="input" value="${esc(c.username)}" oninput="STATE.creation.username=this.value" placeholder="@username"></div> 
+  <div style="margin-bottom:8px"><label class="label">Character Name</label> <select class="select" onchange="STATE.creation.charname=this.value"> <option value="">— Select Name —</option> ${NAMES.filter(n=>!STATE.players.find(p=>p.charname===n&&!p.isDead)).map(n=>`<option${c.charname===n?' selected':''}>${n}</option>`).join('')} </select></div> 
+  <div style="margin-bottom:8px"><label class="label">Class</label> <select class="select" onchange="STATE.creation={...STATE.creation,cls:this.value,repRoll:null,traitRoll:null,weaponRoll:null,skillRoll:null,shadowRoll:null,enchantRoll:null,destinyRoll:null};render()"> <option value="">— Select Class —</option> ${CLASSES.map(cl=>`<option value="${cl}"${c.cls===cl?' selected':''}>${CLASS_ICON[cl]} ${cl} — HP ${CLASS_HP[cl]}</option>`).join('')} </select></div> 
+  
+  ${base?`<div class="roll-box" style="margin-bottom:8px">
+  <div style="font-size:0.6rem;color:var(--dim);text-transform:uppercase;letter-spacing:2px;margin-bottom:6px;font-family:Arial,sans-serif">Base Stats</div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
+  ${Object.entries(base).map(([s,v])=>{const col=STAT_COLORS[s];const bonus=trait&&PRIMARY_STAT[c.cls]===s?trait.bonus:0;return`<div style="text-align:center"><div style="font-size:0.56rem;color:var(--dim);font-family:Arial,sans-serif">${s}</div><div style="font-size:0.9rem;font-weight:bold;color:${col}">${v+bonus}${bonus?`<span style="font-size:0.5rem;color:var(--green)"> +${bonus}</span>`:''}</div></div>`;}).join('')}
+  </div></div>`:'' } 
+  
+  <div style="margin-bottom:8px"><label class="label">Origin</label> <select class="select" onchange="STATE.creation.origin=this.value"> <option value="">— Select Origin —</option> ${ORIGINS.map(o=>`<option${c.origin===o?' selected':''}>${o}</option>`).join('')} </select></div> 
+  <div style="margin-bottom:12px"><label class="label">Notes</label><textarea class="textarea" oninput="STATE.creation.notes=this.value" placeholder="Player notes...">${esc(c.notes)}</textarea></div> 
+  
+  ${c.cls?`<div class="roll-box"><div class="section-title">Creation Rolls — ${c.cls}</div>${renderCreationRolls(c)}</div>`:''}
+  
+  <button class="btn btn-purple btn-full" style="margin-top:12px" onclick="addPlayer()">✦ Add to The Hollow Realm</button>
+</div>`;
 }
+
 
 function renderCreationRolls(c){
 const rolls=[
@@ -1854,7 +1894,7 @@ render();
 }
 
 function addPlayer() {
-const c = STATE.creation;
+STATE.creation = {username:'',charname:'',cls:'',origin:'',payment:'tiktok',notes:'',repRoll:null,traitRoll:null,weaponRoll:null,skillRoll:null,shadowRoll:null,enchantRoll:null,destinyRoll:null, pfpImage:null, charImage:null};
 if (!c.username || !c.charname || !c.cls) return alert('Username, name and class required.');
 const hp = CLASS_HP[c.cls] || 8;
 const rep = c.repRoll ? getRep(c.cls, c.repRoll) : null;
