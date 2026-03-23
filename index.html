@@ -1161,31 +1161,638 @@ addLog({type:‘hp’, who:p.charname, what:`HP ${delta>0?'+':''}${delta} → ${
 if (nh === 0) addLog({type:‘death’, who:p.charname, what:`${p.charname} DOWNED at 0 HP`});
 }
 
-```
-<div style="background:${ph.color}10;border:1px solid ${ph.color}40;border-radius:8px;padding:12px;margin-bottom:8px">
-  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
-    <div style="font-weight:bold;color:${ph.color};font-size:0.88rem">Phase ${ph.phase} — ${esc(ph.name)}</div>
-    <div style="width:10px;height:10px;border-radius:50%;background:${ph.color};box-shadow:0 0 6px ${ph.color};flex-shrink:0;margin-top:3px"></div>
-  </div>
-  <div style="font-size:0.62rem;color:#888;font-family:Arial,sans-serif;margin-bottom:4px">${esc(ph.hp)}</div>
-  <div style="font-size:0.73rem;color:var(--text);font-family:Arial,sans-serif">${esc(ph.desc)}</div>
-</div>`).join(''):''}
-${STATE.villainSec==='loot'?`<div class="section-title">Loot Drop Table</div>
-${v.loot.map(l=>`<div style="padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.04)">
-  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px">
-    <span style="font-size:0.76rem;color:var(--text);font-family:Arial,sans-serif;flex:1">${esc(l.item)}</span>
-    <span style="font-size:0.86rem;font-weight:bold;font-family:Arial,sans-serif;margin-left:10px;flex-shrink:0;color:${l.chance.includes('100')?'var(--gold)':parseInt(l.chance)>=60?'var(--green)':parseInt(l.chance)>=35?'var(--gold)':'var(--blue)'}">${esc(l.chance)}</span>
-  </div>
-</div>`).join('')}`:''}
-```
+const TABS=[{id:‘players’,label:‘👥 Players’},{id:‘create’,label:‘🪆 Create’},{id:‘dice’,label:‘🎲 Dice’},{id:‘battle’,label:‘⚔️ Battle’},{id:‘log’,label:‘⏱ Log’},{id:‘map’,label:‘🌍 Map’},{id:‘raids’,label:‘⚔️ Raids’},{id:‘base’,label:‘🏠 Base’},{id:‘classes’,label:‘🧙 Classes’},{id:‘rules’,label:‘📜 Rules’}];
+
+function render(){
+const tb=document.getElementById(‘tab-bar’);
+const pn=document.getElementById(‘panel’);
+if(!tb||!pn)return;
+tb.innerHTML=TABS.map(t=>`<div class="tab${STATE.tab===t.id?' active':''}" onclick="STATE.tab='${t.id}';render()">${t.label}</div>`).join(’’);
+pn.className=‘panel fade-in’;
+switch(STATE.tab){
+case ‘players’: pn.innerHTML=renderPlayers();break;
+case ‘create’:  pn.innerHTML=renderCreate();break;
+case ‘dice’:    pn.innerHTML=renderDice();break;
+case ‘battle’:  pn.innerHTML=renderBattle();break;
+case ‘log’:     pn.innerHTML=renderLog();break;
+case ‘map’:     pn.innerHTML=renderMap();break;
+case ‘raids’:   pn.innerHTML=renderRaids();break;
+case ‘base’:    pn.innerHTML=renderBase();break;
+case ‘classes’: pn.innerHTML=renderClasses();break;
+case ‘rules’:   pn.innerHTML=renderRules();break;
+default:        pn.innerHTML=renderPlayers();
+}
+const pm=document.getElementById(‘player-modal’);
+const im=document.getElementById(‘inventory-modal’);
+if(pm){pm.innerHTML=STATE.selectedPlayer?renderPlayerModal():’’;pm.className=‘modal-overlay’+(STATE.selectedPlayer?’ active’:’’);}
+if(im){im.innerHTML=STATE.selectedInventoryPlayer?renderInventoryModal():’’;im.className=‘modal-overlay’+(STATE.selectedInventoryPlayer?’ active’:’’);}
+}
+
+function esc(s){if(s==null)return’’;return String(s).replace(/&/g,’&’).replace(/</g,’<’).replace(/>/g,’>’).replace(/”/g,’"’).replace(/’/g,’'’);}
+
+function hpColor(pct){return pct>60?‘var(–green)’:pct>30?’#ff9800’:‘var(–red)’;}
+
+function statBars(p){
+const stats=getPlayerStats(p);
+return ‘<div class="stat-grid">’+Object.entries(stats).map(([s,v])=>{
+const c=STAT_COLORS[s];const pct=Math.min(100,(v/12)*100);
+return`<div><div class="stat-label"><span style="color:${c};font-weight:bold">${s}</span><span style="color:${c}">${v}</span></div><div class="stat-bar-wrap"><div class="stat-bar" style="width:${pct}%;background:${c};box-shadow:0 0 4px ${c}80"></div></div></div>`;
+}).join(’’)+’</div>’;
+}
+
+// PLAYERS TAB
+function renderPlayers(){
+const live=STATE.players.filter(p=>!p.isDead&&(p.charname||’’).toLowerCase().includes((STATE.search||’’).toLowerCase()));
+const dead=STATE.players.filter(p=>p.isDead&&(p.charname||’’).toLowerCase().includes((STATE.search||’’).toLowerCase()));
+return`<div style="display:flex;gap:8px;margin-bottom:12px"> <div style="position:relative;flex:1"><span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--dim)">🔍</span> <input class="input" style="padding-left:30px" placeholder="Search players..." value="${esc(STATE.search||'')}" oninput="STATE.search=this.value;render()"></div> <button class="btn btn-purple" onclick="STATE.tab='create';render()">+ New</button></div> ${live.length+dead.length===0?`<div class="empty-state"><div class="empty-icon">🌑</div><div>The Hollow awaits its first adventurers.</div></div>`:''} ${live.map(p=>playerCard(p)).join('')} ${dead.length?`<div class="section-title" style="margin-top:16px">☠ Fallen</div>${dead.map(p=>playerCard(p)).join(’’)}`:''}`;
+}
+
+function playerCard(p){
+const pct=Math.max(0,(p.hp/p.maxHp)*100);const hc=hpColor(pct);
+return`<div class="player-card${p.protectionBalance>0?' protected':''}${p.isDead?' dead':''}" onclick="STATE.selectedPlayer=${p.id};render()"> <div style="display:flex;justify-content:space-between;align-items:flex-start"> <div> <div style="font-weight:bold;font-size:0.95rem;color:#fff">${esc(p.charname)}${p.isDead?' ☠':''}</div> <div style="font-size:0.62rem;color:var(--purple-light);font-family:Arial,sans-serif">${CLASS_ICON[p.cls]||''} ${p.cls} · @${esc(p.username)}</div> <div style="font-size:0.62rem;color:var(--dim);font-family:Arial,sans-serif">📍 ${esc(p.origin||'')}</div> ${p.title?`<div style="font-size:0.62rem;color:var(--gold);font-style:italic">✦ ${esc(p.title)}</div>`:''} </div> <span style="font-size:0.6rem;color:var(--dim);font-family:Arial,sans-serif">Tap →</span> </div> <div style="display:flex;justify-content:space-between;font-size:0.6rem;color:${hc};margin-top:9px;margin-bottom:2px;font-family:Arial,sans-serif"><span style="font-weight:bold">HP</span><span>${p.hp}/${p.maxHp}</span></div> <div class="hp-bar-wrap"><div class="hp-bar" style="width:${pct}%;background:${hc};box-shadow:0 0 6px ${hc}"></div></div> ${statBars(p)} ${p.traitLevel?`<div style="font-size:0.6rem;color:${TRAIT_TIERS.find(t=>t.level===p.traitLevel)?.color||'#bbb'};margin-top:5px;font-family:Arial,sans-serif">Trait: ${p.traitLevel}</div>`:''} <div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:6px"> ${p.isDead?'<span class="tag pill-wanted">☠ DEAD</span>':''} ${p.protectionBalance>0?`<span class="tag" style="background:rgba(60,50,10,0.8);color:var(--gold)">🛡 ${p.protectionBalance.toLocaleString()}</span>`:''} ${(p.consequences||[]).map(c=>`<span class="tag pill-${c.type||'curse'}">${c.label}</span>`).join(’’)}
+</div>
 
   </div>`;
 }
 
-// ── ESCAPE ─────────────────────────────────────────
-function esc(str) {
-if (str === null || str === undefined) return ‘’;
-return String(str).replace(/&/g,’&’).replace(/</g,’<’).replace(/>/g,’>’).replace(/”/g,’"’).replace(/’/g,’'’);
+function renderPlayerModal(){
+const p=STATE.players.find(x=>x.id===STATE.selectedPlayer);if(!p)return’’;
+const pct=Math.max(0,(p.hp/p.maxHp)*100);const hc=hpColor(pct);
+const stats=getPlayerStats(p);
+const FULL={STR:‘Strength’,DEF:‘Defense’,INT:‘Intelligence’,WIS:‘Wisdom’,SPD:‘Speed’,CHA:‘Charisma’,LCK:‘Luck’};
+return`<div class="modal-box"> <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px"> <div> <div style="font-weight:bold;font-size:0.95rem;color:#fff">${esc(p.charname)} — ${CLASS_ICON[p.cls]||''} ${p.cls}</div> <div style="font-size:0.62rem;color:var(--dim);font-family:Arial,sans-serif">@${esc(p.username)} · ${esc(p.origin||'')} · ${p.joined||''}</div> ${p.title?`<div style="font-size:0.7rem;color:var(--gold);font-style:italic;margin-top:2px">✦ ${esc(p.title)}</div>`:''} </div> <button style="background:none;border:none;color:var(--dim);font-size:1.3rem;cursor:pointer" onclick="STATE.selectedPlayer=null;render()">✕</button> </div> <div class="card" style="margin-bottom:12px"> <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px"> <span style="font-size:0.6rem;color:var(--dim);text-transform:uppercase;letter-spacing:2px;font-family:Arial,sans-serif">Hit Points</span> <span style="font-size:1.1rem;font-weight:bold;color:${hc};font-family:Arial,sans-serif">${p.hp}<span style="font-size:0.7rem;color:var(--dim)"> / ${p.maxHp}</span></span> </div> <div class="hp-bar-wrap" style="height:10px;margin-bottom:8px"><div class="hp-bar" style="width:${pct}%;background:${hc};box-shadow:0 0 10px ${hc}"></div></div> <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px"> ${[-5,-3,-2,-1].map(d=>`<button class="btn btn-sm btn-red" onclick="adjHP(${p.id},${d});render()">${d}</button>`).join('')} <div style="flex:1"></div> ${[1,2,3,5].map(d=>`<button class="btn btn-sm btn-green" onclick="adjHP(${p.id},${d});render()">+${d}</button>`).join('')} <button class="btn btn-sm" onclick="updatePlayer(${p.id},{hp:${p.maxHp}});render()">Full</button> </div> <div style="height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);margin-bottom:10px"></div> <div style="font-size:0.6rem;color:var(--dim);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;font-family:Arial,sans-serif">Character Stats</div> <div class="stat-grid"> ${Object.entries(stats).map(([s,v])=>{const c=STAT_COLORS[s];const pct2=Math.min(100,(v/12)*100);return`<div><div class="stat-label"><span style="color:${c};font-weight:bold">${FULL[s]||s}</span><span style="font-size:0.85rem;font-weight:bold;color:${c}">${v}</span></div><div class="stat-bar-wrap" style="height:5px"><div class="stat-bar" style="width:${pct2}%;background:${c};box-shadow:0 0 5px ${c}60"></div></div></div>`;}).join('')} </div> ${p.traitLevel?`<div style="margin-top:10px;padding:5px 10px;background:rgba(138,90,220,0.1);border-radius:6px;font-size:0.68rem;color:${TRAIT_TIERS.find(t=>t.level===p.traitLevel)?.color||'var(--purple-light)'};font-family:Arial,sans-serif">Trait: ${p.traitLevel}</div>`:''} </div> ${p.repPassive?`<div style="background:rgba(10,8,30,0.8);border-left:2px solid var(--gold);padding:6px 10px;font-size:0.66rem;color:#bbb;margin-bottom:6px;border-radius:0 6px 6px 0;font-family:Arial,sans-serif"><span style="color:var(--gold);font-weight:bold">✦ Rep: </span>${esc(p.repPassive)}</div>`:''} ${p.signatureSkill?`<div style="background:rgba(10,8,30,0.8);border-left:2px solid var(--blue);padding:6px 10px;font-size:0.66rem;color:#bbb;margin-bottom:6px;border-radius:0 6px 6px 0;font-family:Arial,sans-serif"><span style="color:var(--blue);font-weight:bold">⚡ ${esc(p.signatureSkill)}: </span>${esc(p.signatureSkillDesc||’’)}</div>`:''} ${p.shadowTrait?`<div style="background:rgba(10,8,30,0.8);border-left:2px solid var(--red);padding:6px 10px;font-size:0.66rem;color:#bbb;margin-bottom:6px;border-radius:0 6px 6px 0;font-family:Arial,sans-serif"><span style="color:var(--red);font-weight:bold">🌑 ${esc(p.shadowTrait)}: </span>${esc(p.shadowTraitDesc||’’)}</div>`:''} ${p.enchantment?`<div style="background:rgba(10,8,30,0.8);border-left:2px solid var(--gold);padding:6px 10px;font-size:0.66rem;color:#bbb;margin-bottom:6px;border-radius:0 6px 6px 0;font-family:Arial,sans-serif"><span style="color:var(--gold);font-weight:bold">✨ ${esc(p.enchantment)}: </span>${esc(p.enchantmentDesc||’’)}</div>`:''} ${p.destinyThread?`<div style="background:rgba(30,10,50,0.8);border-left:2px solid #ce93d8;padding:6px 10px;font-size:0.68rem;color:#ce93d8;margin-bottom:14px;border-radius:0 6px 6px 0;font-style:italic;font-family:Arial,sans-serif">🔮 “${esc(p.destinyThread)}”</div>`:''} <div class="section-title">Position</div> <input class="input" style="margin-bottom:12px" value="${esc(p.position||'')}" onblur="updatePlayer(${p.id},{position:this.value})"> <div class="section-title">Inventory (${(p.inventory||[]).length})</div> ${(p.inventory||[]).map((item,i)=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.74rem;color:#bbb;font-family:Arial,sans-serif"><span>${esc(item)}</span><button onclick="rmInvItem(${p.id},${i})" style="background:none;border:none;color:var(--dim);cursor:pointer">✕</button></div>`).join('')} <div style="display:flex;gap:6px;margin-top:6px;margin-bottom:12px"> <input class="input" style="flex:1" id="inv-add-${p.id}" placeholder="Add item..."> <button class="btn btn-sm btn-green" onclick="addInvItem(${p.id})">Add</button> </div> <div class="section-title">Consequences</div> <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:8px"> ${[{type:'curse',label:'⚗ Cursed'},{type:'wanted',label:'🎯 Wanted'},{type:'exile',label:'🚫 Exiled'},{type:'servant',label:'⛓ Servant'}].map(c=>`<button class="btn btn-sm" style="background:rgba(30,20,50,0.8)" onclick="addConsequence(${p.id},'${c.type}','${c.label}')">+ ${c.label}</button>`).join('')} </div> ${(p.consequences||[]).map((c,i)=>`<div style="display:flex;justify-content:space-between;padding:5px 8px;background:rgba(10,8,25,0.8);border-radius:5px;margin-bottom:5px;font-size:0.72rem;font-family:Arial,sans-serif"><span>${c.label}</span><button onclick="rmConsequence(${p.id},${i})" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:0.68rem">✕ Lift</button></div>`).join('')} <div class="section-title" style="margin-top:12px">Gift Power</div> <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"> <span style="font-size:0.72rem;color:${p.giftPowerUsed?'var(--dim)':'var(--green)'};font-family:Arial,sans-serif">${p.giftPowerUsed?'✕ Used':'✓ Available'}</span> <button class="btn btn-sm" onclick="updatePlayer(${p.id},{giftPowerUsed:${!p.giftPowerUsed}});render()">${p.giftPowerUsed?'Reset':'Mark Used'}</button> </div> <div style="display:flex;gap:8px;flex-wrap:wrap"> ${p.isDead?`<button class="btn" style="background:var(--gold);color:#000" onclick="resurrect(${p.id})">⚗ Resurrect</button>`:`<button class="btn btn-red" onclick="markDead(${p.id})">☠ Mark Dead</button>`}
+<button class="btn" style="background:rgba(20,16,50,0.9);color:var(--dim);border:1px solid var(--border)" onclick="STATE.selectedPlayer=null;render()">Close</button>
+</div>
+
+  </div>`;
+}
+
+// CREATE TAB
+function renderCreate(){
+const c=STATE.creation;
+const trait=c.traitRoll?getTrait(c.traitRoll):null;
+const base=c.cls?CLASS_BASE_STATS[c.cls]:null;
+return`<div class="card"> <div class="section-title">New Character — 7-Roll Creation</div> <div style="margin-bottom:8px"><label class="label">TikTok Username</label><input class="input" value="${esc(c.username)}" oninput="STATE.creation.username=this.value" placeholder="@username"></div> <div style="margin-bottom:8px"><label class="label">Character Name</label> <select class="select" onchange="STATE.creation.charname=this.value"> <option value="">— Select Name —</option> ${NAMES.filter(n=>!STATE.players.find(p=>p.charname===n&&!p.isDead)).map(n=>`<option${c.charname===n?’ selected’:’’}>${n}</option>`).join('')} </select></div> <div style="margin-bottom:8px"><label class="label">Class</label> <select class="select" onchange="STATE.creation={...STATE.creation,cls:this.value,repRoll:null,traitRoll:null,weaponRoll:null,skillRoll:null,shadowRoll:null,enchantRoll:null,destinyRoll:null};render()"> <option value="">— Select Class —</option> ${CLASSES.map(cl=>`<option value=”${cl}”${c.cls===cl?’ selected’:’’}>${CLASS_ICON[cl]} ${cl} — HP ${CLASS_HP[cl]}</option>`).join('')} </select></div> ${base?`<div class="roll-box" style="margin-bottom:8px">
+<div style="font-size:0.6rem;color:var(--dim);text-transform:uppercase;letter-spacing:2px;margin-bottom:6px;font-family:Arial,sans-serif">Base Stats</div>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
+${Object.entries(base).map(([s,v])=>{const col=STAT_COLORS[s];const bonus=trait&&PRIMARY_STAT[c.cls]===s?trait.bonus:0;return`<div style="text-align:center"><div style="font-size:0.56rem;color:var(--dim);font-family:Arial,sans-serif">${s}</div><div style="font-size:0.9rem;font-weight:bold;color:${col}">${v+bonus}${bonus?`<span style="font-size:0.5rem;color:var(--green)"> +${bonus}</span>`:''}</div></div>`;}).join(’’)}
+</div></div>`:'' } <div style="margin-bottom:8px"><label class="label">Origin</label> <select class="select" onchange="STATE.creation.origin=this.value"> <option value="">— Select Origin —</option> ${ORIGINS.map(o=>`<option${c.origin===o?’ selected’:’’}>${o}</option>`).join('')} </select></div> <div style="margin-bottom:12px"><label class="label">Notes</label><textarea class="textarea" oninput="STATE.creation.notes=this.value" placeholder="Player notes...">${esc(c.notes)}</textarea></div> ${c.cls?`<div class="roll-box"><div class="section-title">Creation Rolls — ${c.cls}</div>${renderCreationRolls(c)}</div>`:’’}
+<button class="btn btn-purple btn-full" style="margin-top:12px" onclick="addPlayer()">✦ Add to The Hollow Realm</button>
+
+  </div>`;
+}
+
+function renderCreationRolls(c){
+const rolls=[
+{key:‘repRoll’,label:‘Roll 1 — Reputation Title’,fn:r=>getRep(c.cls,r),nameKey:‘title’,descKey:‘passive’,col:’#ffb300’,
+opts:(REP[c.cls]||[]).map(r=>`<option value="${r.r[0]}">${rangeLabel(r.r)} — ${r.title}</option>`).join(’’)},
+{key:‘traitRoll’,label:‘Roll 2 — Trait Effectiveness’,fn:r=>getTrait(r),nameKey:‘level’,descKey:null,col:’#ce93d8’,
+opts:TRAIT_TIERS.map((t,i)=>{const rr=[[1,4],[5,9],[10,14],[15,19],[20,20]][i];return`<option value="${rr[0]}">${rangeLabel(rr)} — ${t.level}</option>`;}).join(’’)},
+{key:‘weaponRoll’,label:‘Roll 3 — Starting Weapon’,fn:r=>getWeapon(c.cls,r),nameKey:‘name’,descKey:‘special’,
+col:r=>{const w=getWeapon(c.cls,r);return RARITY_COLOR[w?.rarity]||’#bbb’;},
+opts:(WEAPONS[c.cls]||[]).map(w=>`<option value="${w.r[0]}">${rangeLabel(w.r)} — ${w.name} [${w.rarity}]</option>`).join(’’)},
+{key:‘skillRoll’,label:‘Roll 4 — Signature Skill’,fn:r=>getSkill(c.cls,r),nameKey:‘name’,descKey:‘desc’,col:’#4fc3f7’,
+opts:(SIGNATURE_SKILLS[c.cls]||[]).map(s=>`<option value="${s.r[0]}">${rangeLabel(s.r)} — ${s.name}</option>`).join(’’)},
+{key:‘shadowRoll’,label:‘Roll 5 — Shadow Trait’,fn:r=>getShadow(c.cls,r),nameKey:‘name’,descKey:‘desc’,col:’#ef5350’,
+opts:(SHADOW_TRAITS[c.cls]||[]).map(s=>`<option value="${s.r[0]}">${rangeLabel(s.r)} — ${s.name}</option>`).join(’’)},
+{key:‘enchantRoll’,label:‘Roll 6 — Enchantment’,fn:r=>getEnchant(c.cls,r),nameKey:‘name’,descKey:‘desc’,col:’#ffd54f’,
+opts:(ENCHANTMENTS[c.cls]||[]).map(e=>`<option value="${e.r[0]}">${rangeLabel(e.r)} — ${e.name}</option>`).join(’’)},
+{key:‘destinyRoll’,label:‘Roll 7 — Destiny Thread’,fn:r=>getDestiny(c.cls,r),nameKey:‘thread’,descKey:null,col:’#ce93d8’,
+opts:(DESTINY_THREADS[c.cls]||[]).map(d=>`<option value="${d.r[0]}">${rangeLabel(d.r)} — ${d.thread.slice(0,50)}...</option>`).join(’’)},
+];
+return rolls.map(({key,label,fn,nameKey,descKey,col,opts})=>{
+const roll=c[key];const result=roll?fn(roll):null;
+const color=typeof col===‘function’?(roll?col(roll):’#bbb’):col;
+return`<div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.04)"> <div style="font-size:0.66rem;color:var(--dim);margin-bottom:6px;font-family:Arial,sans-serif;font-weight:bold">${label}</div> <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap"> <button class="btn btn-sm" style="flex-shrink:0" onclick="STATE.creation['${key}']=d20();render()">🎲 Roll</button> <input type="number" min="1" max="20" class="input" style="width:56px;flex-shrink:0" value="${roll||''}" oninput="STATE.creation['${key}']=parseInt(this.value)||null;render()" placeholder="1-20"> <select class="select" style="flex:1;font-size:0.65rem" onchange="STATE.creation['${key}']=parseInt(this.value)||null;render()"> <option value="">— or pick —</option>${opts} </select> </div> ${result?`<div style="background:rgba(10,8,30,0.9);border:1px solid ${color}40;border-radius:6px;padding:8px 12px">
+<div style="color:${color};font-weight:bold;font-size:0.76rem;margin-bottom:3px">${esc(result[nameKey]||’’)}</div>
+${descKey&&result[descKey]?`<div style="font-size:0.66rem;color:#888;font-family:Arial,sans-serif">${esc(result[descKey])}</div>`:’’}
+${nameKey===‘thread’?`<div style="font-size:0.68rem;color:#888;font-style:italic;font-family:Arial,sans-serif">${esc(result.thread||'')}</div>`:’’}
+</div>`:''} </div>`;
+}).join(’’)+creationPreview(c);
+}
+
+function creationPreview(c){
+if(!c.repRoll&&!c.weaponRoll)return’’;
+const rep=c.repRoll?getRep(c.cls,c.repRoll):null;
+const wpn=c.weaponRoll?getWeapon(c.cls,c.weaponRoll):null;
+const skl=c.skillRoll?getSkill(c.cls,c.skillRoll):null;
+const shd=c.shadowRoll?getShadow(c.cls,c.shadowRoll):null;
+const dest=c.destinyRoll?getDestiny(c.cls,c.destinyRoll):null;
+return`<div style="background:rgba(138,90,220,0.05);border:1px solid var(--border);border-radius:8px;padding:12px;margin-top:8px"> <div style="font-size:0.58rem;color:var(--purple-light);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;font-family:Arial,sans-serif">Character Preview</div> <div style="font-weight:bold;font-size:0.8rem;color:#fff;margin-bottom:4px">${esc(c.charname||'—')} · ${CLASS_ICON[c.cls]||''} ${c.cls}</div> ${rep?`<div style="font-size:0.66rem;color:var(--gold);font-style:italic;margin-bottom:2px">✦ ${esc(rep.title)}</div>`:''} ${wpn?`<div style="font-size:0.66rem;color:${RARITY_COLOR[wpn.rarity]||'#bbb'};margin-bottom:2px">⚔️ ${esc(wpn.name)}</div>`:''} ${skl?`<div style="font-size:0.66rem;color:var(--blue);margin-bottom:2px">⚡ ${esc(skl.name)}</div>`:''} ${shd?`<div style="font-size:0.66rem;color:var(--red);margin-bottom:2px">🌑 ${esc(shd.name)}</div>`:''} ${dest?`<div style="font-size:0.65rem;color:#ce93d8;font-style:italic">🔮 “${esc(dest.thread.slice(0,80))}…”</div>`:’’}
+
+  </div>`;
+}
+
+// DICE TAB
+function renderDice(){
+const display=getDiceDisplay(STATE.diceRoll);
+const spin=STATE.diceSpinning;
+const glow=spin?’#b388ff’:display?display.glow:‘rgba(138,90,220,0.4)’;
+const fc=spin?’#3d2b6b’:!STATE.diceRoll?’#2a1f5e’:STATE.diceRoll===1?’#5d0a0a’:STATE.diceRoll<=4?’#4a1010’:STATE.diceRoll<=9?’#4a2a08’:STATE.diceRoll<=14?’#0a3d1a’:STATE.diceRoll<=19?’#0a2550’:’#3d0a6b’;
+const num=spin?’?’:STATE.diceRoll||‘d20’;
+const dc=STATE.diceContext;
+return`<div class="card-glow"> <div style="text-align:center;padding:10px 0 20px"> <svg viewBox="0 0 120 120" width="160" height="160" style="display:block;margin:0 auto;filter:drop-shadow(0 0 ${spin?12:display?16:8}px ${glow});${spin?'animation:spin 0.15s linear infinite;transform-origin:60px 60px':''}"> <defs><radialGradient id="fg2" cx="50%" cy="40%" r="60%"><stop offset="0%" stop-color="${fc}"/><stop offset="100%" stop-color="#050510"/></radialGradient></defs> <circle cx="60" cy="60" r="56" fill="none" stroke="${glow}" stroke-width="0.5" opacity="0.4"/> <polygon points="60,8 106,37 91,88 29,88 14,37" fill="url(#fg2)" stroke="${glow}" stroke-width="1.2"/> <polygon points="60,8 80,42 40,42" fill="none" stroke="${glow}60" stroke-width="0.6"/> <polygon points="14,37 40,42 29,88" fill="none" stroke="${glow}40" stroke-width="0.6"/> <polygon points="106,37 80,42 91,88" fill="none" stroke="${glow}40" stroke-width="0.6"/> <polygon points="29,88 60,72 91,88" fill="none" stroke="${glow}40" stroke-width="0.6"/> <line x1="60" y1="8" x2="60" y2="72" stroke="${glow}20" stroke-width="0.4"/> <line x1="14" y1="37" x2="91" y2="88" stroke="${glow}20" stroke-width="0.4"/> <line x1="106" y1="37" x2="29" y2="88" stroke="${glow}20" stroke-width="0.4"/> <line x1="40" y1="42" x2="80" y2="42" stroke="${glow}30" stroke-width="0.4"/> <line x1="40" y1="42" x2="60" y2="72" stroke="${glow}30" stroke-width="0.4"/> <line x1="80" y1="42" x2="60" y2="72" stroke="${glow}30" stroke-width="0.4"/> <text x="60" y="60" text-anchor="middle" dominant-baseline="middle" font-size="${STATE.diceRoll>=10?22:28}" font-weight="bold" fill="${spin?'#b388ff80':display?display.glow:'#4a3f7a'}" font-family="Georgia,serif" style="user-select:none">${num}</text> ${STATE.diceRoll===20&&!spin?'<line x1="46" y1="66" x2="74" y2="66" stroke="#ce93d8" stroke-width="1.2" opacity="0.8"/>':''} </svg> ${display&&!spin?`<div style="padding:12px 20px;background:${display.bg};border:1px solid ${display.glow};border-radius:10px;box-shadow:0 0 30px ${display.glow}40;margin:8px 0 16px">
+<div style="font-size:1.25rem;font-weight:bold;color:#fff;letter-spacing:2px;font-family:Georgia,serif">${display.label}</div>
+<div style="font-size:0.74rem;color:rgba(255,255,255,0.7);margin-top:4px;font-family:Arial,sans-serif">${display.desc}</div>
+${dc.player?`<div style="font-size:0.65rem;color:rgba(255,255,255,0.5);margin-top:4px;font-family:Arial,sans-serif">${esc(dc.player)} · ${esc(dc.custom||dc.target||ROLL_PURPOSES[dc.purpose]?.label||'')}</div>`:’’}
+</div>`:’’}
+<button class=“btn btn-purple” style=“font-size:1rem;padding:12px 40px;letter-spacing:1px;${spin?‘opacity:0.6;cursor:not-allowed’:’’}” onclick=“rollDice()” ${spin?‘disabled’:’’}>
+${spin?‘Rolling…’:‘ROLL THE DICE’}
+</button>
+</div>
+
+  </div>
+  <div class="card">
+    <div class="section-title">Roll Context</div>
+    <div style="margin-bottom:10px"><label class="label">For which player?</label>
+      <select class="select" onchange="STATE.diceContext.player=this.value">
+        <option value="">DM / General Roll</option>
+        ${STATE.players.filter(p=>!p.isDead).map(p=>`<option value="${esc(p.charname)}"${dc.player===p.charname?' selected':''}>${CLASS_ICON[p.cls]||''} ${esc(p.charname)} (${p.cls})</option>`).join('')}
+      </select></div>
+    <div style="margin-bottom:10px"><label class="label">Category</label>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px">
+        ${Object.entries(ROLL_PURPOSES).map(([k,cat])=>`<button class="btn btn-sm" style="font-size:0.6rem;padding:6px 4px;background:${dc.purpose===k?cat.color+'25':'rgba(10,8,30,0.8)'};color:${dc.purpose===k?cat.color:'var(--dim)'};border:1px solid ${dc.purpose===k?cat.color:'var(--border)'}" onclick="STATE.diceContext={...STATE.diceContext,purpose:'${k}',target:'',custom:''};render()">${cat.label}</button>`).join('')}
+      </div></div>
+    ${dc.purpose&&dc.purpose!=='custom'?`<div style="margin-bottom:10px"><label class="label">Specific Action</label>
+      <select class="select" onchange="STATE.diceContext.target=this.value;STATE.diceContext.custom=''">
+        <option value="">— Select —</option>
+        ${(ROLL_PURPOSES[dc.purpose]?.options||[]).map(o=>`<option value="${esc(o)}"${dc.target===o?' selected':''}>${o}</option>`).join('')}
+        <option value="custom">✏️ Custom...</option>
+      </select></div>`:''}
+    ${dc.purpose==='custom'||dc.target==='custom'?`<div style="margin-bottom:10px"><label class="label">Describe</label><input class="input" value="${esc(dc.custom)}" oninput="STATE.diceContext.custom=this.value" placeholder="What is this roll for..."></div>`:''}
+    ${dc.player||dc.purpose?`<div class="info-bar" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <span style="color:var(--purple-light)">Logging as:</span>
+      ${dc.player?`<span style="color:var(--gold)">${esc(dc.player)}</span>`:''}
+      <span style="color:#fff">${dc.custom?'— '+esc(dc.custom):dc.target&&dc.target!=='custom'?'— '+esc(dc.target):dc.purpose?'— '+(ROLL_PURPOSES[dc.purpose]?.label||''):''}</span>
+      <button class="btn btn-sm" style="margin-left:auto;background:rgba(60,10,10,0.5);color:#888" onclick="STATE.diceContext={player:'',purpose:'',target:'',custom:''};render()">Clear</button>
+    </div>`:''}
+  </div>
+  <div class="card">
+    <div class="section-title">Roll Reference</div>
+    ${[{r:'1',l:'💀 FUMBLE',c:'var(--red)',d:'Catastrophic backfire'},{r:'2-4',l:'✗ FAIL',c:'var(--red)',d:'Fails entirely'},{r:'5-9',l:'⚠ WEAK HIT',c:'#ff9800',d:'Partial success'},{r:'10-14',l:'✓ SUCCESS',c:'var(--green)',d:'Clean success'},{r:'15-19',l:'★ STRONG HIT',c:'var(--blue)',d:'Success + bonus'},{r:'20',l:'⚡ CRITICAL',c:'#ce93d8',d:'Legendary — announce it'}].map(({r,l,c,d})=>`<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><span style="color:${c};font-weight:bold;min-width:36px;font-size:0.7rem;font-family:Arial,sans-serif">${r}</span><span style="color:${c};font-weight:bold;font-size:0.7rem;min-width:110px;font-family:Arial,sans-serif">${l}</span><span style="color:var(--dim);font-size:0.66rem;font-family:Arial,sans-serif">${d}</span></div>`).join('')}
+  </div>
+  ${STATE.diceHistory.length?`<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div class="section-title" style="margin-bottom:0">Recent Rolls</div><button class="btn btn-sm" onclick="STATE.diceHistory=[];render()">Clear</button></div>
+    ${STATE.diceHistory.slice(0,10).map((e,i)=>{const d=getDiceDisplay(e.result);return`<div style="display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04)">
+      <div style="min-width:36px;height:36px;border-radius:6px;background:${d?.bg||'rgba(30,25,60,0.8)'};border:1px solid ${d?.glow||'var(--border)'};display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <span style="font-weight:bold;color:${d?.glow||'#fff'};font-size:0.88rem;font-family:Georgia,serif">${e.result}</span>
+      </div>
+      <div style="flex:1">
+        <div style="display:flex;gap:5px;align-items:baseline">${e.player&&e.player!=='DM'?`<span style="font-size:0.68rem;font-weight:bold;color:var(--purple-light);font-family:Arial,sans-serif">${esc(e.player)}</span>`:''}<span style="font-size:0.65rem;color:${d?.glow||'var(--dim)'};font-weight:bold;font-family:Arial,sans-serif">${d?.label||''}</span></div>
+        <div style="font-size:0.63rem;color:var(--dim);font-family:Arial,sans-serif">${esc(e.purpose||'General roll')}</div>
+      </div>
+      <div style="font-size:0.58rem;color:var(--dimmer);font-family:Arial,sans-serif">${e.time}</div>
+    </div>`;}).join('')}
+  </div>`:''}`;
+}
+
+// BATTLE TAB
+function renderBattle(){
+const mins=Math.floor(STATE.battleTime/60);const secs=(STATE.battleTime%60).toString().padStart(2,‘0’);
+const pct=(STATE.battleTime/180)*100;
+const TIERS=[{min:0,max:4999,tier:‘⚠ MINOR’,cons:‘Lose title OR stat debuff’,color:’#4caf50’},{min:5000,max:9999,tier:‘⚔ MODERATE’,cons:‘Cursed 2 sessions OR item stolen’,color:’#ff9800’},{min:10000,max:19999,tier:‘💀 MAJOR’,cons:‘Exile OR servant’,color:’#ef5350’},{min:20000,max:44999,tier:‘☠ SEVERE’,cons:‘Killed OR curse+exile+theft’,color:’#b71c1c’},{min:45000,max:Infinity,tier:‘👁 OP CONTROL’,cons:‘Winner narrates anything — one session’,color:’#ce93d8’}];
+const c1=parseInt(STATE.battleCoins1)||0,c2=parseInt(STATE.battleCoins2)||0;
+const diff=Math.abs(c1-c2);const tier=TIERS.find(t=>diff>=t.min&&diff<=t.max)||TIERS[0];
+return`<div class="card-glow"> <div class="section-title">⚔️ Box Battle</div> <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px"> <div><label class="label">Player 1</label> <input class="input" value="${esc(STATE.battleP1)}" oninput="STATE.battleP1=this.value" placeholder="@username" list="p1l"> <datalist id="p1l">${STATE.players.filter(p=>!p.isDead).map(p=>`<option>${esc(p.charname)}</option>`).join('')}</datalist> <input class="input" style="margin-top:6px" type="number" value="${STATE.battleCoins1}" oninput="STATE.battleCoins1=this.value" placeholder="Coins"></div> <div><label class="label">Player 2</label> <input class="input" value="${esc(STATE.battleP2)}" oninput="STATE.battleP2=this.value" placeholder="@username" list="p2l"> <datalist id="p2l">${STATE.players.filter(p=>!p.isDead).map(p=>`<option>${esc(p.charname)}</option>`).join('')}</datalist> <input class="input" style="margin-top:6px" type="number" value="${STATE.battleCoins2}" oninput="STATE.battleCoins2=this.value" placeholder="Coins"></div> </div> <div style="text-align:center;margin-bottom:12px"> <div style="font-size:2.5rem;font-weight:bold;color:#fff;font-family:Georgia,serif;letter-spacing:3px">${mins}:${secs}</div> <div class="hp-bar-wrap" style="height:8px;margin:8px 0"><div class="hp-bar" style="width:${pct}%;background:${pct>60?'var(--green)':pct>30?'#ff9800':'var(--red)'}"></div></div> <div style="display:flex;gap:8px;justify-content:center"> <button class="btn btn-purple" onclick="toggleBattle()">${STATE.battleRunning?'⏸ Pause':'▶ Start'}</button> <button class="btn btn-sm" onclick="resetBattle()">↺ Reset</button> </div> </div> ${c1+c2>0?`<div style="background:${tier.color}20;border:1px solid ${tier.color}60;border-radius:8px;padding:12px;text-align:center">
+<div style="font-weight:bold;color:${tier.color};font-size:1rem;margin-bottom:4px">${tier.tier}</div>
+<div style="font-size:0.74rem;color:#ccc;font-family:Arial,sans-serif">${tier.cons}</div>
+${c1!==c2?`<div style="font-size:0.7rem;color:var(--gold);margin-top:4px;font-family:Arial,sans-serif">Winner: ${esc(c1>c2?STATE.battleP1||'P1':STATE.battleP2||'P2')} · Gap: ${diff.toLocaleString()} coins</div>`:’’}
+</div>`:’’}
+
+  </div>
+  <div class="card"><div class="section-title">Consequence Ladder</div>
+    ${TIERS.map(t=>`<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.04)">
+      <div style="min-width:12px;height:12px;border-radius:50%;background:${t.color};box-shadow:0 0 5px ${t.color};flex-shrink:0"></div>
+      <div style="flex:1"><div style="font-weight:bold;font-size:0.74rem;color:${t.color}">${t.tier}</div><div style="font-size:0.63rem;color:var(--dim);font-family:Arial,sans-serif">${t.cons}</div></div>
+      <div style="font-size:0.6rem;color:var(--dimmer);font-family:Arial,sans-serif">${t.max===Infinity?'45k+':t.min.toLocaleString()+'–'+t.max.toLocaleString()}</div>
+    </div>`).join('')}
+  </div>`;
+}
+
+// LOG TAB
+function renderLog(){
+const elapsed=STATE.sessionActive&&STATE.sessionStartTime?Math.floor((Date.now()-STATE.sessionStartTime)/60000):0;
+const filtered=STATE.sessionLog.filter(e=>(STATE.logFilter===‘all’||e.type===STATE.logFilter)&&(!STATE.logSearch||(e.who||’’).toLowerCase().includes(STATE.logSearch.toLowerCase())||(e.what||’’).toLowerCase().includes(STATE.logSearch.toLowerCase())));
+const sessions=[…new Set(filtered.map(e=>e.session))].sort((a,b)=>b-a);
+return`<div class="card" style="border-color:${STATE.sessionActive?'rgba(102,187,106,0.5)':'var(--border)'};background:${STATE.sessionActive?'rgba(10,40,15,0.9)':'var(--card)'}"> <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${STATE.sessionActive?'10px':'0'}"> <div><div style="font-weight:bold;font-size:0.86rem;color:#fff">${STATE.sessionActive?'<span class="session-live"></span>':''}Session ${STATE.sessionNumber} — ${STATE.sessionActive?'Live':'Standby'}</div> ${STATE.sessionActive?`<div style="font-size:0.62rem;color:var(--green);margin-top:2px;font-family:Arial,sans-serif">Started ${STATE.sessionStartTime?new Date(STATE.sessionStartTime).toLocaleTimeString([],{hour:‘2-digit’,minute:‘2-digit’}):’’} · ${elapsed} min</div>`:''} </div> ${!STATE.sessionActive?`<button class="btn btn-green" onclick="beginSession()">▶ Begin</button>`:`<button class="btn btn-red" onclick="endSession()">⏹ End Session</button>`} </div> ${STATE.sessionActive?`<div style="height:1px;background:linear-gradient(90deg,transparent,rgba(102,187,106,0.3),transparent);margin-bottom:10px"></div>
+<div style="font-size:0.6rem;color:var(--dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;font-family:Arial,sans-serif">Quick Log</div>
+<div style="display:flex;gap:5px;flex-wrap:wrap">
+${Object.entries(LOG_TYPES).map(([k,t])=>`<button class="btn btn-sm" style="font-size:0.6rem;background:rgba(10,8,30,0.8);color:${t.color};border:1px solid ${t.color}30" onclick="STATE.manualEntry={who:'',what:'',type:'${k}'};render()">${t.icon} ${t.label}</button>`).join(’’)}
+</div>`:’’}
+
+  </div>
+  ${STATE.manualEntry.type&&STATE.sessionActive?`<div class="card" style="border-color:${LOG_TYPES[STATE.manualEntry.type]?.color}40">
+    <div style="display:flex;justify-content:space-between;margin-bottom:10px">
+      <div style="font-size:0.7rem;color:${LOG_TYPES[STATE.manualEntry.type]?.color};font-weight:bold;font-family:Arial,sans-serif">${LOG_TYPES[STATE.manualEntry.type]?.icon} Log ${LOG_TYPES[STATE.manualEntry.type]?.label}</div>
+      <button style="background:none;border:none;color:var(--dim);cursor:pointer" onclick="STATE.manualEntry.type=null;render()">✕</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <div style="flex:0 0 130px"><label class="label">Who</label>
+        <input class="input" id="log-who" value="${esc(STATE.manualEntry.who)}" oninput="STATE.manualEntry.who=this.value" placeholder="@player or DM" list="whl">
+        <datalist id="whl"><option value="DM">${STATE.players.filter(p=>!p.isDead).map(p=>`<option>${esc(p.charname)}</option>`).join('')}</datalist>
+      </div>
+      <div style="flex:1"><label class="label">What happened</label>
+        <input class="input" id="log-what" value="${esc(STATE.manualEntry.what)}" oninput="STATE.manualEntry.what=this.value" placeholder="Describe..." onkeydown="if(event.key==='Enter')submitLogEntry()">
+      </div>
+    </div>
+    <button class="btn btn-purple" onclick="submitLogEntry()">+ Add to Log</button>
+  </div>`:''}
+  ${STATE.sessionLog.length?`<div>
+    <input class="input" style="margin-bottom:8px" placeholder="🔍 Search..." value="${esc(STATE.logSearch)}" oninput="STATE.logSearch=this.value;render()">
+    <div style="display:flex;gap:5px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none;margin-bottom:10px">
+      <button class="btn btn-sm" style="${STATE.logFilter==='all'?'background:rgba(138,90,220,0.2);color:var(--purple-light);border-color:var(--purple)':''}" onclick="STATE.logFilter='all';render()">All (${STATE.sessionLog.length})</button>
+      ${Object.entries(LOG_TYPES).map(([k,t])=>{const cnt=STATE.sessionLog.filter(e=>e.type===k).length;if(!cnt)return'';return`<button class="btn btn-sm" style="flex-shrink:0;${STATE.logFilter===k?'background:rgba(10,8,30,0.9);color:'+t.color+';border-color:'+t.color:''}" onclick="STATE.logFilter='${k}';render()">${t.icon} ${cnt}</button>`;}).join('')}
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span style="font-size:0.62rem;color:var(--dim);font-family:Arial,sans-serif">${filtered.length} entries</span>
+      <button class="btn btn-sm" style="background:rgba(60,10,10,0.6);color:#888" onclick="if(STATE.sessionLog.length){STATE.sessionLog.splice(STATE.sessionLog.length-1,1);save('session_log',STATE.sessionLog);render()}">↩ Undo</button>
+    </div>
+    ${sessions.map(sNum=>{
+      const entries=[...filtered.filter(e=>e.session===sNum)].reverse();if(!entries.length)return'';
+      const allS=STATE.sessionLog.filter(e=>e.session===sNum);
+      const startE=allS.find(e=>e.type==='session'&&(e.what||'').includes('began'));
+      const endE=allS.find(e=>e.type==='session'&&(e.what||'').includes('ended'));
+      return`<div style="margin-bottom:16px">
+        <div style="background:rgba(138,90,220,0.08);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+          <span style="font-weight:bold;font-size:0.76rem;color:var(--purple-light)">Session ${sNum}</span>
+          <div style="font-size:0.6rem;color:var(--dim);font-family:Arial,sans-serif;text-align:right">${startE?`<div>Started ${startE.time}</div>`:''}${endE?`<div>Ended ${endE.time}</div>`:''}${allS.length} entries</div>
+        </div>
+        ${entries.map(e=>{const t=LOG_TYPES[e.type]||LOG_TYPES.note;return`<div class="log-entry">
+          <div class="log-time">${e.time||''}</div>
+          <div class="log-icon">${t.icon}</div>
+          <div class="log-body">
+            <div class="log-who" style="color:${e.who==='DM'?'var(--gold)':'var(--purple-light)'}">${esc(e.who||'')} <span style="font-size:0.58rem;padding:1px 5px;border-radius:5px;background:rgba(10,8,30,0.8);color:${t.color};font-family:Arial,sans-serif">${t.label}</span></div>
+            <div class="log-what">${esc(e.what||'')}</div>
+            ${e.result?`<div style="display:inline-block;margin-top:3px;padding:2px 8px;border-radius:5px;background:${getDiceDisplay(e.result)?.bg||'rgba(30,25,60,0.8)'};border:1px solid ${getDiceDisplay(e.result)?.glow||'var(--border)'};font-size:0.63rem;font-weight:bold;color:#fff;font-family:Arial,sans-serif">${e.result} — ${e.label||''}</div>`:''}
+          </div>
+        </div>`;}).join('')}
+      </div>`;
+    }).join('')}
+    <div style="text-align:center;margin-top:16px;padding-top:12px;border-top:1px solid var(--dimmer)">
+      <button class="btn btn-sm" style="background:rgba(40,10,10,0.8);color:#888" onclick="if(confirm('Clear all logs?')){STATE.sessionLog=[];STATE.sessionNumber=1;STATE.sessionActive=false;STATE.sessionStartTime=null;saveAll();render()}">🗑 Clear All</button>
+    </div>
+  </div>`:`<div class="empty-state"><div class="empty-icon">⏱</div><div>No session started yet.</div></div>`}`;
+}
+
+// MAP TAB
+function renderMap(){
+if(STATE.mapLocation)return renderMapLocation();
+return`<div class="card" style="margin-bottom:10px"> <div class="section-title">Map Legend</div> <div style="display:flex;gap:8px;flex-wrap:wrap">${Object.entries(PIN_TYPES).map(([k,pt])=>`<div style="display:flex;align-items:center;gap:4px"><div style="width:9px;height:9px;border-radius:50%;background:${pt.color};box-shadow:0 0 5px ${pt.color}"></div><span style="font-size:0.6rem;color:var(--dim);font-family:Arial,sans-serif">${pt.label}</span></div>`).join(’’)}</div>
+
+  </div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <svg id="map-svg" viewBox="0 0 100 100" style="width:100%;display:block;cursor:pointer">
+      <defs>
+        <radialGradient id="mbg" cx="50%" cy="50%" r="70%"><stop offset="0%" stop-color="#0a0825"/><stop offset="100%" stop-color="#050510"/></radialGradient>
+        <filter id="glo2"><feGaussianBlur stdDeviation="0.8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      </defs>
+      <rect width="100" height="100" fill="url(#mbg)"/>
+      ${[[8,12],[22,55],[35,8],[55,18],[65,85],[78,62],[88,28],[92,72],[5,90],[48,95],[15,75],[70,45]].map(([x,y])=>`<circle cx="${x}" cy="${y}" r="0.3" fill="white" opacity="0.25"/>`).join('')}
+      ${WORLD_LOCATIONS.map(loc=>loc.connectedTo.map(toId=>{const to=WORLD_LOCATIONS.find(l=>l.id===toId);if(!to||to.id<=loc.id)return'';return`<line x1="${loc.x}" y1="${loc.y}" x2="${to.x}" y2="${to.y}" stroke="rgba(138,90,220,0.2)" stroke-width="0.4" stroke-dasharray="1.5,1.5"/>`;}).join('')).join('')}
+      ${WORLD_LOCATIONS.map(loc=>{
+        const danger=STATE.mapDanger[loc.id]??loc.danger;const dc=DANGER_COLORS[danger]||'#888';
+        const pins=STATE.mapPins.filter(p=>p.location===loc.id);
+        return`<g onclick="STATE.mapLocation='${loc.id}';render()" style="cursor:pointer">
+          <circle cx="${loc.x}" cy="${loc.y}" r="5.5" fill="none" stroke="${dc}" stroke-width="0.4" opacity="0.5" filter="url(#glo2)"/>
+          <circle cx="${loc.x}" cy="${loc.y}" r="4.2" fill="${loc.color}25" stroke="${loc.color}" stroke-width="0.6" filter="url(#glo2)"/>
+          <text x="${loc.x}" y="${loc.y+1.2}" text-anchor="middle" font-size="3.5" style="user-select:none">${loc.icon}</text>
+          <text x="${loc.x}" y="${loc.y+7.5}" text-anchor="middle" font-size="2.2" fill="white" opacity="0.9" font-family="Arial" style="user-select:none">${loc.short.replace('The ','')}</text>
+          ${pins.length?`<circle cx="${loc.x-3.5}" cy="${loc.y-3.5}" r="2.2" fill="rgba(138,90,220,0.9)" stroke="#b388ff" stroke-width="0.3"/><text x="${loc.x-3.5}" y="${loc.y-2.7}" text-anchor="middle" font-size="2" fill="white" font-family="Arial" style="user-select:none">${pins.length}</text>`:''}
+          ${'!'.repeat(Math.max(0,danger-2))?`<text x="${loc.x+3.5}" y="${loc.y-3}" text-anchor="middle" font-size="1.8" fill="${dc}" style="user-select:none">${'!'.repeat(Math.max(0,danger-2))}</text>`:''}
+        </g>`;
+      }).join('')}
+    </svg>
+    <div style="text-align:center;padding:8px;font-size:0.6rem;color:var(--dim);font-family:Arial,sans-serif">Tap any location to view</div>
+  </div>
+  ${WORLD_LOCATIONS.map(loc=>{
+    const danger=STATE.mapDanger[loc.id]??loc.danger;
+    const pins=STATE.mapPins.filter(p=>p.location===loc.id);
+    return`<div class="card" style="cursor:pointer;border-color:${loc.color}40;margin-bottom:8px" onclick="STATE.mapLocation='${loc.id}';render()">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font-size:1.5rem">${loc.icon}</span>
+          <div><div style="font-weight:bold;font-size:0.84rem;color:#fff">${loc.name}</div>
+          <div style="font-size:0.6rem;color:${loc.color};font-family:Arial,sans-serif">Danger: <span style="color:${DANGER_COLORS[danger]};font-weight:bold">${DANGER_LABELS[danger]}</span></div></div>
+        </div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">
+          ${Object.entries(PIN_TYPES).map(([k,pt])=>{const cnt=pins.filter(p=>p.type===k).length;return cnt?`<span style="font-size:0.6rem;padding:2px 6px;border-radius:8px;background:rgba(10,8,30,0.8);color:${pt.color};font-family:Arial,sans-serif">${pt.icon} ${cnt}</span>`:''}).join('')}
+        </div>
+      </div>
+    </div>`;
+  }).join('')}`;
+}
+
+function renderMapLocation(){
+const loc=WORLD_LOCATIONS.find(l=>l.id===STATE.mapLocation);if(!loc)return’’;
+const danger=STATE.mapDanger[loc.id]??loc.danger;
+const pins=STATE.mapPins.filter(p=>p.location===loc.id);
+const event=STATE.mapEvents[loc.id]||’’;
+return`<button class="btn btn-sm" style="margin-bottom:14px" onclick="STATE.mapLocation=null;STATE.showAddPin=false;render()">← Back</button>
+
+  <div class="card-glow" style="border-color:${loc.color}60;background:linear-gradient(135deg,${loc.color}12,rgba(5,4,18,0.98))">
+    <div style="font-size:2.5rem;margin-bottom:6px">${loc.icon}</div>
+    <div style="font-weight:bold;font-size:1rem;color:#fff">${loc.name}</div>
+    <div style="font-size:0.7rem;color:${loc.color};margin-top:4px;line-height:1.5;font-family:Arial,sans-serif">${loc.desc}</div>
+    <div style="margin-top:12px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:0.6rem;color:var(--dim);text-transform:uppercase;letter-spacing:1.5px;font-family:Arial,sans-serif">Danger</span><span style="font-size:0.76rem;font-weight:bold;color:${DANGER_COLORS[danger]};font-family:Arial,sans-serif">${danger}/5 — ${DANGER_LABELS[danger]}</span></div>
+      <div style="display:flex;gap:4px">${[1,2,3,4,5].map(d=>`<div style="flex:1;height:8px;border-radius:4px;cursor:pointer;background:${d<=danger?DANGER_COLORS[d]:'rgba(255,255,255,0.06)'}" onclick="STATE.mapDanger['${loc.id}']=${d};save('map_danger',STATE.mapDanger);render()"></div>`).join('')}</div>
+    </div>
+  </div>
+  <div class="card"><div class="section-title">📡 Active Event</div>
+    <textarea class="textarea" style="min-height:55px" oninput="STATE.mapEvents['${loc.id}']=this.value;save('map_events',STATE.mapEvents)" placeholder="What's happening here...">${esc(event)}</textarea>
+  </div>
+  <div class="card"><div class="section-title">Features</div>
+    ${loc.features.map(f=>`<div style="display:flex;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.72rem;color:var(--dim);font-family:Arial,sans-serif"><span style="color:${loc.color};flex-shrink:0">✦</span>${f}</div>`).join('')}
+  </div>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="section-title" style="margin-bottom:0">📍 Pins (${pins.length})</div>
+      <button class="btn btn-sm" onclick="STATE.showAddPin=!STATE.showAddPin;render()">${STATE.showAddPin?'✕':'+ Add Pin'}</button>
+    </div>
+    ${STATE.showAddPin?`<div style="background:rgba(8,6,25,0.9);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+      <label class="label">Name</label><input class="input" id="pin-name" style="margin-bottom:8px" placeholder="Who or what..." list="pnl">
+      <datalist id="pnl">${STATE.players.filter(p=>!p.isDead).map(p=>`<option>${esc(p.charname)}</option>`).join('')}</datalist>
+      <label class="label">Type</label>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:8px">
+        ${Object.entries(PIN_TYPES).map(([k,pt])=>`<button class="btn btn-sm" style="font-size:0.58rem;padding:5px 3px;border-color:${STATE.addPinForm.type===k?pt.color:'var(--border)'};background:${STATE.addPinForm.type===k?pt.color+'30':'rgba(10,8,30,0.8)'};color:${STATE.addPinForm.type===k?pt.color:'var(--dim)'}" onclick="STATE.addPinForm.type='${k}';render()">${pt.icon} ${pt.label}</button>`).join('')}
+      </div>
+      <label class="label">Note</label><input class="input" id="pin-note" style="margin-bottom:10px" placeholder="Context...">
+      <button class="btn btn-purple" onclick="addPin('${loc.id}')">📍 Place Pin</button>
+    </div>`:''}
+    ${pins.length===0?`<div style="color:var(--dimmer);font-size:0.72rem;text-align:center;padding:12px 0;font-family:Arial,sans-serif">No pins yet.</div>`
+    :Object.entries(PIN_TYPES).map(([tk,pt])=>{const tp=pins.filter(p=>p.type===tk);if(!tp.length)return'';return`<div style="margin-bottom:8px"><div style="font-size:0.6rem;color:${pt.color};text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px;font-family:Arial,sans-serif">${pt.icon} ${pt.label}s</div>
+      ${tp.map(pin=>`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:7px 10px;margin-bottom:4px;border-radius:7px;background:${pt.color}20;border:1px solid ${pt.color}30">
+        <div><div style="font-weight:bold;font-size:0.76rem;color:${pt.color}">${esc(pin.name)}</div>${pin.note?`<div style="font-size:0.62rem;color:#888;font-family:Arial,sans-serif">${esc(pin.note)}</div>`:''}</div>
+        <button style="background:none;border:none;color:var(--dim);cursor:pointer" onclick="STATE.mapPins=STATE.mapPins.filter(p=>p.id!=='${pin.id}');save('map_pins',STATE.mapPins);render()">✕</button>
+      </div>`).join('')}</div>`;}).join('')}
+  </div>
+  <div class="card"><div class="section-title">Connected</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${loc.connectedTo.map(toId=>{const to=WORLD_LOCATIONS.find(l=>l.id===toId);if(!to)return'';return`<button class="btn btn-sm" style="background:${to.color}20;color:${to.color};border-color:${to.color}50" onclick="STATE.mapLocation='${toId}';STATE.showAddPin=false;render()">${to.icon} ${to.name}</button>`;}).join('')}
+    </div>
+  </div>`;
+}
+
+// RAIDS TAB
+function renderRaids(){
+if(STATE.activeRaid)return renderActiveRaid();
+return`<div class="card-glow"> <div class="section-title">⚔️ Launch a Raid</div> <div style="font-size:0.7rem;color:var(--dim);margin-bottom:12px;line-height:1.6;font-family:Arial,sans-serif">Raids are driven live by viewer gifts. Each phase presents an encounter.</div> <div style="margin-bottom:14px"><label class="label">Raid Tier</label> ${Object.entries(RAID_TIERS).map(([k,t])=>`<div onclick="STATE.raidTier='${k}';render()" style="border:1px solid ${STATE.raidTier===k?t.color:'var(--border)'};border-radius:8px;padding:10px 12px;cursor:pointer;background:${STATE.raidTier===k?t.color+'15':'rgba(10,8,30,0.8)'};margin-bottom:6px">
+<div style="display:flex;justify-content:space-between"><span style="font-weight:bold;color:${STATE.raidTier===k?t.color:'#fff'};font-size:0.8rem">${t.label}</span><span style="font-size:0.6rem;color:${t.color};font-family:Arial,sans-serif">Max ${t.maxParty}</span></div>
+<div style="font-size:0.64rem;color:var(--dim);font-family:Arial,sans-serif;margin-top:2px">${t.desc}</div>
+<div style="font-size:0.6rem;color:${t.color};font-family:Arial,sans-serif;margin-top:2px">💰 ${t.giftCost}</div>
+</div>`).join('')} </div> <div style="margin-bottom:14px"><label class="label">Target Location</label> <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px"> ${Object.entries(RAID_LOCATIONS).map(([k,l])=>`<button class="btn btn-sm" style="text-align:left;padding:8px 10px;background:${STATE.raidLocation===k?'rgba(138,90,220,0.2)':'rgba(10,8,30,0.8)'};color:${STATE.raidLocation===k?'var(--purple-light)':'var(--dim)'};border-color:${STATE.raidLocation===k?'var(--purple)':'var(--border)'}" onclick="STATE.raidLocation='${k}';render()">${l.icon} ${l.name.replace(‘The ‘,’’).replace(‘The ‘,’’)}</button>`).join('')} </div></div> <div style="margin-bottom:14px"><label class="label">Raid Party (max ${RAID_TIERS[STATE.raidTier]?.maxParty||3})</label> ${STATE.players.filter(p=>!p.isDead).map(p=>{const inP=STATE.raidParty.includes(p.id);const maxP=RAID_TIERS[STATE.raidTier]?.maxParty||3;return`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-radius:7px;border:1px solid ${inP?'var(--purple)':'var(--border)'};background:${inP?'rgba(138,90,220,0.1)':'rgba(10,8,30,0.5)'};margin-bottom:6px">
+<div><div style="font-weight:bold;font-size:0.8rem;color:#fff">${esc(p.charname)}</div><div style="font-size:0.6rem;color:var(--dim);font-family:Arial,sans-serif">${CLASS_ICON[p.cls]||’’} ${p.cls} · ${p.hp}/${p.maxHp} HP</div></div>
+<button class="btn btn-sm" style="${inP?'background:var(--purple);color:#fff':''}" onclick="(function(){if(${inP}){STATE.raidParty=STATE.raidParty.filter(id=>id!==parseInt('${p.id}'));}else if(STATE.raidParty.length<${maxP}){STATE.raidParty.push(${p.id});}render();})()">${inP?‘✓ In’:’+ Add’}</button>
+</div>`;}).join(’’)}
+</div>
+<button class=“btn btn-purple btn-full” ${!STATE.raidParty.length||!STATE.raidLocation?‘disabled style=“opacity:0.5”’:’’} onclick=“launchRaid()”>⚔️ Launch Raid</button>
+
+  </div>
+  ${STATE.raidHistory.length?`<div class="card"><div class="section-title">Recent Raids</div>
+    ${STATE.raidHistory.slice(-5).reverse().map(r=>`<div style="padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.04)">
+      <div style="display:flex;justify-content:space-between"><span style="font-weight:bold;font-size:0.74rem;color:${r.success?'var(--green)':'var(--red)'}">${r.success?'✓':'✗'} ${RAID_TIERS[r.tier]?.label||''} — ${RAID_LOCATIONS[r.location]?.icon||''}</span><span style="font-size:0.6rem;color:var(--dim);font-family:Arial,sans-serif">${r.date||''}</span></div>
+      ${r.loot?`<div style="font-size:0.62rem;color:var(--gold);font-family:Arial,sans-serif;margin-top:2px">💰 ${r.loot}</div>`:''}</div>`).join('')}
+  </div>`:''}`;
+}
+
+function renderActiveRaid(){
+const raid=STATE.activeRaid;const tier=RAID_TIERS[raid.tier];const loc=RAID_LOCATIONS[raid.location];const enc=raid.encounter;const phase=tier.phases[STATE.raidPhase];
+const party=STATE.players.filter(p=>STATE.raidParty.includes(p.id));
+return`<div class="card-glow" style="border-color:${tier.color}50;background:linear-gradient(135deg,${tier.color}12,rgba(5,4,18,0.98))"> <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px"> <div><div style="font-weight:bold;color:${tier.color};font-size:0.88rem">${tier.label}</div> <div style="font-size:0.78rem;color:#fff;margin-top:2px">${loc?.icon||''} ${loc?.name||''}</div> <div style="font-size:0.66rem;color:var(--dim);font-family:Arial,sans-serif;margin-top:2px">${enc?.name||''}</div></div> <div style="text-align:right"><div style="font-size:0.6rem;color:var(--dim);font-family:Arial,sans-serif">Phase ${STATE.raidPhase+1}/${tier.phases.length}</div><div style="font-weight:bold;color:${tier.color};font-size:0.8rem">${phase}</div></div> </div> <div style="display:flex;gap:3px;margin-bottom:10px">${tier.phases.map((_,i)=>`<div style="flex:1;height:5px;border-radius:3px;background:${i<=STATE.raidPhase?tier.color:'rgba(255,255,255,0.06)'};box-shadow:${i===STATE.raidPhase?'0 0 8px '+tier.color:'none'}"></div>`).join('')}</div> ${party.map(p=>{const pct=Math.max(0,(p.hp/p.maxHp)*100);const hc=hpColor(pct);return`<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><span style="font-size:0.68rem;color:var(--purple-light);min-width:70px;font-family:Arial,sans-serif">${esc(p.charname)}</span><div style="flex:1;height:5px;background:rgba(255,255,255,0.05);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${hc}"></div></div><span style="font-size:0.62rem;color:${hc};min-width:32px;text-align:right;font-family:Arial,sans-serif">${p.hp}/${p.maxHp}</span></div>`;}).join(’’)}
+
+  </div>
+  <div class="card" style="margin-bottom:10px">
+    <div class="section-title">Current Encounter</div>
+    <div style="font-weight:bold;color:#fff;font-size:0.84rem;margin-bottom:6px">${enc?.name||''}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px">
+      <div style="background:rgba(10,8,30,0.8);border-radius:6px;padding:7px 10px"><div style="font-size:0.56rem;color:var(--purple-light);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:3px;font-family:Arial,sans-serif">Enemy</div><div style="font-size:0.68rem;color:var(--text);font-family:Arial,sans-serif">${enc?.enemy||''}</div></div>
+      <div style="background:rgba(10,8,30,0.8);border-radius:6px;padding:7px 10px"><div style="font-size:0.56rem;color:var(--gold);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:3px;font-family:Arial,sans-serif">Reward</div><div style="font-size:0.68rem;color:var(--gold);font-family:Arial,sans-serif">${enc?.reward||''}</div></div>
+    </div>
+    <div style="font-size:0.66rem;color:var(--dim);font-family:Arial,sans-serif">Difficulty: <span style="color:${(enc?.difficulty||0)>=14?'var(--red)':(enc?.difficulty||0)>=10?'#ff9800':'var(--green)'};font-weight:bold">${enc?.difficulty||0}/20</span></div>
+  </div>
+  <div class="card" style="margin-bottom:10px">
+    <div class="section-title">💰 Gift Actions</div>
+    ${RAID_ACTIONS.map(a=>`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04)">
+      <div style="flex:1"><div style="font-weight:bold;font-size:0.75rem;color:#fff">${a.label}</div><div style="font-size:0.62rem;color:var(--dim);font-family:Arial,sans-serif;margin-top:1px">${a.desc}</div></div>
+      <div style="text-align:right;margin-left:10px;flex-shrink:0"><div style="font-size:0.68rem;color:var(--gold);font-weight:bold;font-family:Arial,sans-serif">${a.coins.toLocaleString()}</div>
+        <button class="btn btn-sm" style="margin-top:4px;font-size:0.58rem" onclick="(function(){const t=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});STATE.raidLog.push({time:t,text:'${a.label.replace(/'/g,"\\'")} triggered (${a.coins.toLocaleString()} coins)',type:'action'});render();})()">Log</button>
+      </div>
+    </div>`).join('')}
+  </div>
+  ${STATE.raidLog.length?`<div class="card" style="margin-bottom:10px">
+    <div class="section-title">📋 Raid Feed</div>
+    ${STATE.raidLog.slice().reverse().map(e=>`<div style="display:flex;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.03)"><span style="font-size:0.58rem;color:var(--dim);flex-shrink:0;font-family:Arial,sans-serif;min-width:46px">${e.time}</span><span style="font-size:0.7rem;color:${e.type==='system'?'var(--gold)':e.type==='action'?'var(--blue)':'var(--text)'};font-family:Arial,sans-serif">${esc(e.text)}</span></div>`).join('')}
+  </div>`:''}
+  <div style="display:flex;gap:8px;margin-bottom:12px">
+    <button class="btn btn-purple" onclick="nextRaidPhase()">Next Phase →</button>
+    <button class="btn btn-green" onclick="endRaid(true)">✓ Success</button>
+    <button class="btn btn-red" onclick="endRaid(false)">✗ Retreat</button>
+  </div>`;
+}
+
+// BASE TAB
+function renderBase(){
+return`<div class="card-glow">
+<div style="font-size:2rem;margin-bottom:6px">🏠</div>
+<div style="font-weight:bold;font-size:1rem;color:#fff">The Hollow Hearth</div>
+<div style="font-size:0.66rem;color:var(--dim);font-family:Arial,sans-serif;margin-top:2px">${STATE.baseResidents.length} residents</div>
+<div style="margin-top:10px">
+<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:0.6rem;color:var(--dim);text-transform:uppercase;letter-spacing:1.5px;font-family:Arial,sans-serif">Defense</span><span style="font-size:0.72rem;font-weight:bold;color:var(--purple-light);font-family:Arial,sans-serif">${STATE.baseDefense}/10</span></div>
+<div class="hp-bar-wrap" style="height:6px;margin-bottom:6px"><div class="hp-bar" style="width:${STATE.baseDefense*10}%;background:var(--purple);box-shadow:0 0 8px var(--purple)"></div></div>
+<div style="display:flex;gap:6px">
+<button class="btn btn-sm btn-green" onclick="STATE.baseDefense=Math.min(10,STATE.baseDefense+1);save('base_defense',STATE.baseDefense);render()">+1</button>
+<button class="btn btn-sm btn-red" onclick="STATE.baseDefense=Math.max(0,STATE.baseDefense-1);save('base_defense',STATE.baseDefense);render()">-1</button>
+<button class="btn btn-sm" style="margin-left:auto;background:rgba(60,10,10,0.8);color:#ff9800" onclick="triggerBaseRaid()">⚠️ Base Raid</button>
+</div>
+</div>
+
+  </div>
+  ${STATE.baseAttack?`<div style="background:rgba(60,10,10,0.9);border:1px solid rgba(239,83,80,0.5);border-radius:10px;padding:14px;margin-bottom:12px">
+    <div style="font-weight:bold;color:var(--red);margin-bottom:6px">🚨 BASE UNDER ATTACK</div>
+    <div style="font-weight:bold;font-size:0.82rem;color:#fff;margin-bottom:4px">${STATE.baseAttack.enc}</div>
+    <div style="padding:8px 12px;border-radius:6px;background:${STATE.baseAttack.defended?'rgba(10,50,10,0.8)':'rgba(50,10,10,0.8)'};border:1px solid ${STATE.baseAttack.defended?'#66bb6a':'var(--red)'}50;font-size:0.72rem;color:${STATE.baseAttack.defended?'var(--green)':'var(--red)'};font-family:Arial,sans-serif">${STATE.baseAttack.defended?'✓ DEFENDED':'✗ BREACHED'}</div>
+    <button class="btn btn-sm" style="margin-top:10px" onclick="STATE.baseAttack=null;render()">Dismiss</button>
+  </div>`:''}
+  <div style="margin-bottom:12px"><div class="section-title">Rooms</div>
+    ${Object.entries(BASE_ROOMS).map(([k,room])=>{const lvl=STATE.baseRooms[k]||0;const next=room.tiers[lvl];const curr=room.tiers[lvl-1];
+      return`<div class="card" style="border-color:${lvl>0?'rgba(138,90,220,0.3)':'var(--border)'};opacity:${lvl===0?0.75:1};margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <span style="font-size:1.4rem">${room.icon}</span>
+            <div><div style="font-weight:bold;font-size:0.84rem;color:${lvl>0?'#fff':'var(--dim)'}">${room.name}</div>
+            <div style="font-size:0.6rem;color:var(--dim);font-family:Arial,sans-serif">Level ${lvl}/3</div>
+            ${curr?`<div style="font-size:0.63rem;color:var(--green);font-family:Arial,sans-serif;margin-top:2px">✓ ${curr.bonus}</div>`:''}
+            </div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="display:flex;gap:3px;justify-content:flex-end;margin-bottom:5px">${[1,2,3].map(l=>`<div style="width:8px;height:8px;border-radius:50%;background:${l<=lvl?'var(--purple)':'rgba(255,255,255,0.1)'}"></div>`).join('')}</div>
+            ${next?`<button class="btn btn-sm" style="font-size:0.6rem" onclick="upgradeRoom('${k}')">${lvl===0?'Build':'Upgrade'}<br><span style="font-size:0.54rem">${next.cost.toLocaleString()}c</span></button>`:`<div style="font-size:0.6rem;color:var(--gold);font-family:Arial,sans-serif">✦ Max</div>`}
+          </div>
+        </div>
+      </div>`;}).join('')}
+  </div>
+  <div class="card" style="margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="section-title" style="margin-bottom:0">Residents (${STATE.baseResidents.length})</div>
+      <button class="btn btn-sm" onclick="STATE.showAddResident=!STATE.showAddResident;render()">${STATE.showAddResident?'✕':'+ Add'}</button>
+    </div>
+    ${STATE.showAddResident?`<div style="background:rgba(8,6,25,0.9);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+      <label class="label">Name</label><input class="input" id="res-name" style="margin-bottom:8px" placeholder="Resident name...">
+      <label class="label">Role</label>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:8px">
+        ${Object.entries(RESIDENT_ROLES).map(([k,r])=>`<button class="btn btn-sm" style="font-size:0.6rem;background:${STATE.residentForm.role===k?r.color+'30':'rgba(10,8,30,0.8)'};color:${STATE.residentForm.role===k?r.color:'var(--dim)'};border-color:${STATE.residentForm.role===k?r.color:'var(--border)'}" onclick="STATE.residentForm.role='${k}';render()">${r.icon} ${r.label}</button>`).join('')}
+      </div>
+      <label class="label">Note</label><input class="input" id="res-note" style="margin-bottom:10px" placeholder="Background...">
+      <button class="btn btn-purple" onclick="addResident()">+ Add Resident</button>
+    </div>`:''}
+    ${STATE.baseResidents.length===0?`<div style="color:var(--dimmer);font-size:0.7rem;text-align:center;padding:12px 0;font-family:Arial,sans-serif">The Hearth is empty.</div>`
+    :STATE.baseResidents.map(r=>{const role=RESIDENT_ROLES[r.role];return`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04)">
+      <div style="display:flex;gap:8px"><span style="font-size:1.2rem">${role?.icon||'👤'}</span>
+        <div><div style="font-weight:bold;font-size:0.78rem;color:#fff">${esc(r.name)}</div>
+        <div style="font-size:0.6rem;color:${role?.color||'var(--dim)'};font-family:Arial,sans-serif">${role?.label||''} · ${role?.bonus||''}</div>
+        ${r.note?`<div style="font-size:0.6rem;color:var(--dim);font-family:Arial,sans-serif">${esc(r.note)}</div>`:''}
+        </div>
+      </div>
+      <button style="background:none;border:none;color:var(--dim);cursor:pointer" onclick="removeResident('${r.id}')">✕</button>
+    </div>`;}).join('')}
+  </div>
+  <div class="card">
+    <div class="section-title">🎒 Player Inventories</div>
+    ${STATE.players.filter(p=>!p.isDead).map(p=>{
+      const pack=STATE.packs[p.id]||[];const vault=STATE.vaults[p.id]||[];
+      const used=pack.reduce((a,i)=>a+(i.slots||1),0);const cap=CLASS_PACK_CAP[p.cls]||8;
+      const pct=Math.min(100,(used/cap)*100);const pc=pct>85?'var(--red)':pct>65?'#ff9800':'var(--green)';
+      return`<div style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <div style="font-weight:bold;font-size:0.82rem;color:#fff">${esc(p.charname)} <span style="color:var(--dim);font-size:0.62rem;font-weight:normal">(${p.cls})</span></div>
+          <button class="btn btn-sm" onclick="STATE.selectedInventoryPlayer=${p.id};STATE.inventoryTab='pack';render()">Manage</button>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:0.6rem;color:var(--dim);margin-bottom:2px;font-family:Arial,sans-serif"><span>🎒 ${used}/${cap} slots</span><span>🏦 ${vault.length} items</span></div>
+        <div class="hp-bar-wrap" style="height:5px"><div class="hp-bar" style="width:${pct}%;background:${pc}"></div></div>
+      </div>`;}).join('')}
+  </div>`;
+}
+
+// INVENTORY MODAL
+function renderInventoryModal(){
+const p=STATE.players.find(x=>x.id===STATE.selectedInventoryPlayer);if(!p)return’’;
+const pack=STATE.packs[p.id]||[];const vault=STATE.vaults[p.id]||[];
+const used=pack.reduce((a,i)=>a+(i.slots||1),0);const cap=CLASS_PACK_CAP[p.cls]||8;
+const IT={weapon:{icon:‘⚔️’,slots:2},armor:{icon:‘🛡’,slots:2},consumable:{icon:‘⚗️’,slots:1},key:{icon:‘🗝’,slots:0},material:{icon:‘💎’,slots:1},trinket:{icon:‘✨’,slots:1},document:{icon:‘📜’,slots:0},coin:{icon:‘💰’,slots:1}};
+const CC={Pristine:’#66bb6a’,Good:’#4fc3f7’,Worn:’#ffd54f’,Damaged:’#ff9800’,Broken:’#ef5350’};
+const ri=(item,fp)=>`<div class="item-card"> <div style="display:flex;justify-content:space-between;align-items:flex-start"> <div style="flex:1"> <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-bottom:3px"> <span style="font-size:0.88rem">${IT[item.type]?.icon||'📦'}</span> <span style="font-weight:bold;font-size:0.76rem;color:#fff">${esc(item.name)}</span> <span style="font-size:0.56rem;padding:1px 5px;border-radius:5px;background:${RARITY_COLOR[item.rarity]||'#aaa'}20;color:${RARITY_COLOR[item.rarity]||'#aaa'};font-family:Arial,sans-serif">${item.rarity}</span> <span style="font-size:0.56rem;padding:1px 5px;border-radius:5px;background:${CC[item.condition]||'#aaa'}20;color:${CC[item.condition]||'#aaa'};font-family:Arial,sans-serif">${item.condition}</span> </div> <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:0.6rem;color:var(--dim);font-family:Arial,sans-serif"> ${item.obtainedBy?`<span>${item.obtainedBy}</span>`:''} ${item.provenance?`<span>· ex: ${esc(item.provenance)}</span>`:''} ${item.enchantment?`<span style="color:var(--gold)">✨ ${esc(item.enchantment)}</span>`:’’}
+<span>· ${item.slots||1}s</span>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:3px;margin-left:8px;flex-shrink:0">
+<button class="btn btn-sm" style="font-size:0.58rem" onclick="moveItem(${p.id},'${item.id}',${fp})">${fp?‘→ Vault’:‘→ Pack’}</button>
+<button class="btn btn-sm btn-red" style="font-size:0.58rem" onclick="dropItem(${p.id},'${item.id}',${fp})">Drop</button>
+</div>
+</div>
+
+  </div>`;
+  return`<div class="modal-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div><div style="font-weight:bold;font-size:0.9rem;color:#fff">${esc(p.charname)} — Inventory</div><div style="font-size:0.62rem;color:var(--dim);font-family:Arial,sans-serif">${CLASS_ICON[p.cls]||''} ${p.cls}</div></div>
+      <button style="background:none;border:none;color:var(--dim);font-size:1.3rem;cursor:pointer" onclick="STATE.selectedInventoryPlayer=null;render()">✕</button>
+    </div>
+    <div style="display:flex;gap:5px;margin-bottom:14px">
+      ${['pack','vault','add'].map(t=>`<button class="btn btn-sm" style="flex:1;${STATE.inventoryTab===t?'background:var(--purple);color:#fff':''}" onclick="STATE.inventoryTab='${t}';render()">${t==='pack'?'🎒 Pack ('+used+'/'+cap+')':t==='vault'?'🏦 Vault ('+vault.length+')':'+ Add'}</button>`).join('')}
+    </div>
+    ${STATE.inventoryTab==='pack'?`<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:0.66rem;color:var(--dim);margin-bottom:4px;font-family:Arial,sans-serif"><span>Pack Capacity</span><span style="color:${used>=cap?'var(--red)':'var(--green)'}">${used}/${cap}</span></div><div class="hp-bar-wrap" style="height:8px"><div class="hp-bar" style="width:${Math.min(100,(used/cap)*100)}%;background:${used>=cap?'var(--red)':used/cap>0.7?'#ff9800':'var(--green)'}"></div></div></div>
+    ${pack.length===0?'<div style="color:var(--dimmer);text-align:center;padding:16px 0;font-size:0.72rem;font-family:Arial,sans-serif">Pack is empty.</div>':pack.map(i=>ri(i,true)).join('')}`:''}
+    ${STATE.inventoryTab==='vault'?`${vault.length===0?'<div style="color:var(--dimmer);text-align:center;padding:16px 0;font-size:0.72rem;font-family:Arial,sans-serif">Vault is empty.</div>':vault.map(i=>ri(i,false)).join('')}`:''}
+    ${STATE.inventoryTab==='add'?`<label class="label">Item Name</label><input class="input" id="item-name" style="margin-bottom:8px" placeholder="Item name...">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div><label class="label">Type</label><select class="select" id="item-type">${Object.entries(IT).map(([k,t])=>`<option value="${k}">${t.icon} ${k}</option>`).join('')}</select></div>
+        <div><label class="label">Rarity</label><select class="select" id="item-rarity">${Object.keys(RARITY_COLOR).map(r=>`<option>${r}</option>`).join('')}</select></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div><label class="label">Condition</label><select class="select" id="item-cond">${Object.keys(CC).map(c=>`<option>${c}</option>`).join('')}</select></div>
+        <div><label class="label">Obtained</label><select class="select" id="item-obtain">${['found','looted','crafted','gifted','bought','stolen','reward'].map(o=>`<option>${o}</option>`).join('')}</select></div>
+      </div>
+      <label class="label">Provenance</label><input class="input" id="item-prov" style="margin-bottom:8px" placeholder="Previous owner...">
+      <label class="label">Enchantment</label><input class="input" id="item-ench" style="margin-bottom:8px" placeholder="If any...">
+      <label class="label">Note</label><input class="input" id="item-note" style="margin-bottom:12px" placeholder="Context...">
+      <div style="display:flex;gap:8px"><button class="btn btn-purple" style="flex:1" onclick="addItemToPlayer(${p.id},true)">+ Pack</button><button class="btn" style="flex:1;background:rgba(255,213,79,0.2);color:var(--gold);border:1px solid rgba(255,213,79,0.3)" onclick="addItemToPlayer(${p.id},false)">+ Vault</button></div>`:''}
+  </div>`;
+}
+
+// CLASSES TAB
+function renderClasses(){
+const cls=STATE.classTab;const lore=CLASS_LORE[cls];
+return`<div class="card" style="margin-bottom:10px"> <div class="section-title">Choose Class</div> <div style="display:flex;gap:6px;flex-wrap:wrap"> ${CLASSES.map(c=>`<button class="btn btn-sm" style="background:${STATE.classTab===c?'rgba(138,90,220,0.2)':'rgba(10,8,30,0.8)'};color:${STATE.classTab===c?'var(--purple-light)':'var(--dim)'};border-color:${STATE.classTab===c?'var(--purple)':'var(--border)'}" onclick="STATE.classTab='${c}';STATE.classSec='overview';render()">${CLASS_ICON[c]} ${c}</button>`).join(’’)}
+</div>
+
+  </div>
+  ${lore?`<div class="card-glow" style="margin-bottom:10px">
+    <div style="font-size:2rem;margin-bottom:6px">${CLASS_ICON[cls]}</div>
+    <div style="font-weight:bold;font-size:1.1rem;color:#fff;margin-bottom:4px">${cls}</div>
+    <div style="font-size:0.72rem;color:var(--purple-light);font-style:italic;line-height:1.5;font-family:Arial,sans-serif">${esc(lore.tagline)}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+      <span style="font-size:0.65rem;padding:3px 8px;border-radius:8px;background:rgba(102,187,106,0.2);color:var(--green);font-family:Arial,sans-serif">❤️ HP ${CLASS_HP[cls]}</span>
+      <span style="font-size:0.65rem;padding:3px 8px;border-radius:8px;background:rgba(138,90,220,0.2);color:var(--purple-light);font-family:Arial,sans-serif">🎒 ${CLASS_PACK_CAP[cls]} slots</span>
+    </div>
+  </div>`:'' }
+  <div class="lore-tab-bar">
+    ${[{id:'overview',label:'📖 Overview'},{id:'strengths',label:'💪 Strengths'},{id:'skills',label:'⚡ Skills'},{id:'shadows',label:'🌑 Shadows'},{id:'lore',label:'📚 Lore'}].map(s=>`<button class="lore-tab${STATE.classSec===s.id?' active':''}" onclick="STATE.classSec='${s.id}';render()">${s.label}</button>`).join('')}
+  </div>
+  ${lore?`<div class="card">
+    ${STATE.classSec==='overview'?`<p style="font-size:0.74rem;color:var(--dim);line-height:1.7;font-family:Arial,sans-serif;margin-bottom:12px">${esc(lore.overview)}</p>
+    <div style="height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);margin-bottom:12px"></div>
+    <div class="section-title">Gift Power</div>
+    <div style="background:rgba(138,90,220,0.08);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:0.74rem;color:var(--text);font-family:Arial,sans-serif;line-height:1.5;margin-bottom:12px">${esc(lore.giftPower)}</div>
+    <div class="section-title">Play Style</div>
+    <p style="font-size:0.74rem;color:var(--dim);line-height:1.6;font-family:Arial,sans-serif">${esc(lore.playstyle)}</p>`:''}
+    ${STATE.classSec==='strengths'?`<div class="section-title">Strengths</div>${lore.strengths.map(s=>`<div style="display:flex;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.73rem;color:var(--text);font-family:Arial,sans-serif"><span style="color:var(--green);flex-shrink:0">▲</span>${esc(s)}</div>`).join('')}<div style="height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);margin:12px 0"></div><div class="section-title">Weaknesses</div>${lore.weaknesses.map(w=>`<div style="display:flex;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.73rem;color:var(--text);font-family:Arial,sans-serif"><span style="color:var(--red);flex-shrink:0">▼</span>${esc(w)}</div>`).join('')}`:''}
+    ${STATE.classSec==='skills'?`<div class="section-title">Signature Skills — ${cls}</div>${(SIGNATURE_SKILLS[cls]||[]).map(s=>`<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px"><span style="font-weight:bold;color:var(--blue);font-size:0.8rem">${esc(s.name)}</span><span style="font-size:0.6rem;color:var(--dim);font-family:Arial,sans-serif">Roll ${rangeLabel(s.r)}</span></div><div style="font-size:0.7rem;color:var(--dim);line-height:1.5;font-family:Arial,sans-serif">${esc(s.desc)}</div></div>`).join('')}`:''}
+    ${STATE.classSec==='shadows'?`<div class="section-title">Shadow Traits — ${cls}</div>${(SHADOW_TRAITS[cls]||[]).map(s=>`<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px"><span style="font-weight:bold;color:var(--red);font-size:0.8rem">${esc(s.name)}</span><span style="font-size:0.6rem;color:var(--dim);font-family:Arial,sans-serif">Roll ${rangeLabel(s.r)}</span></div><div style="font-size:0.7rem;color:var(--dim);line-height:1.5;font-family:Arial,sans-serif">${esc(s.desc)}</div></div>`).join('')}`:''}
+    ${STATE.classSec==='lore'?`<p style="font-size:0.76rem;color:var(--dim);line-height:1.7;font-family:Arial,sans-serif">${esc(lore.lore)}</p>`:''}
+  </div>`:''}`;
+}
+
+// RULES TAB
+function renderRules(){
+const t2=[{id:‘rules’,label:‘📜 Rules’},{id:‘faq’,label:‘❓ FAQ’},{id:‘bestiary’,label:‘🎭 Bestiary’}];
+return`<div class="lore-tab-bar">${t2.map(t=>`<button class="lore-tab${STATE.rulesTab===t.id?' active':''}" onclick="STATE.rulesTab='${t.id}';render()">${t.label}</button>`).join('')}</div> ${STATE.rulesTab==='rules'?`<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px">
+${RULES_SECTIONS.map(s=>`<button class="btn btn-sm" style="${STATE.rulesSection===s.id?'background:rgba(138,90,220,0.2);color:var(--purple-light);border-color:var(--purple)':''}" onclick="STATE.rulesSection='${s.id}';render()">${s.title.split(' ').slice(0,2).join(' ')}</button>`).join(’’)}
+
+  </div>
+  ${RULES_SECTIONS.filter(s=>s.id===STATE.rulesSection).map(s=>`<div class="card"><div class="section-title">${esc(s.title)}</div>${s.content.split('\n\n').map(p=>`<p style="font-size:0.74rem;color:var(--dim);line-height:1.7;font-family:Arial,sans-serif;margin-bottom:10px">${esc(p).replace(/\n/g,'<br>')}</p>`).join('')}</div>`).join('')}`:''}
+  ${STATE.rulesTab==='faq'?`<input class="input" style="margin-bottom:10px" placeholder="🔍 Search FAQ..." value="${esc(STATE.faqSearch||'')}" oninput="STATE.faqSearch=this.value;render()">
+  ${FAQ.filter(f=>!STATE.faqSearch||f.q.toLowerCase().includes((STATE.faqSearch||'').toLowerCase())||f.a.toLowerCase().includes((STATE.faqSearch||'').toLowerCase())).map((f,i)=>`<div class="card" style="cursor:pointer;margin-bottom:8px" onclick="STATE.faqOpen=STATE.faqOpen===i?null:i;render()"><div style="display:flex;justify-content:space-between;align-items:flex-start"><div style="font-weight:bold;font-size:0.8rem;color:#fff;flex:1;padding-right:10px">${esc(f.q)}</div><span style="color:var(--purple-light);font-size:1rem;flex-shrink:0">${STATE.faqOpen===i?'▲':'▼'}</span></div>${STATE.faqOpen===i?`<div style="margin-top:8px;font-size:0.74rem;color:var(--dim);line-height:1.6;font-family:Arial,sans-serif">${esc(f.a)}</div>`:''}</div>`).join('')}`:''}
+  ${STATE.rulesTab==='bestiary'?STATE.villainTab===null
+    ?`<div class="info-bar">Tap any villain to expand full lore, phases, abilities, and loot.</div>
+    ${VILLAIN_LORE.map(v=>`<div class="card" style="cursor:pointer;border-color:${v.color}40;margin-bottom:10px" onclick="STATE.villainTab='${v.id}';STATE.villainSec='lore';render()">
+      <div style="display:flex;gap:12px;align-items:flex-start"><span style="font-size:2rem">${v.icon}</span>
+        <div style="flex:1"><div style="font-weight:bold;font-size:0.9rem;color:#fff">${esc(v.name)}</div>
+        <div style="font-size:0.65rem;color:${v.color};font-style:italic;font-family:Arial,sans-serif;margin:2px 0">${esc(v.title)}</div>
+        <div style="font-size:0.62rem;color:var(--dim);font-family:Arial,sans-serif">${esc(v.arc)}</div>
+        <div style="display:flex;gap:5px;margin-top:5px"><span style="font-size:0.58rem;padding:2px 6px;border-radius:8px;background:${v.color}20;color:${v.color};font-family:Arial,sans-serif">${esc(v.type)}</span><span style="font-size:0.58rem;padding:2px 6px;border-radius:8px;background:rgba(239,83,80,0.15);color:var(--red);font-family:Arial,sans-serif">⚠ ${esc(v.threat)}</span></div></div>
+      </div>
+      <div style="font-size:0.68rem;color:#888;font-style:italic;margin-top:8px;font-family:Arial,sans-serif">"${esc(v.tagline)}"</div>
+    </div>`).join('')}`
+    :renderVillainDetail()
+  :''}`;
+}
+
+function renderVillainDetail(){
+const v=VILLAIN_LORE.find(x=>x.id===STATE.villainTab);if(!v)return’’;
+const secs=[{id:‘lore’,label:‘📖 Lore’},{id:‘combat’,label:‘⚔️ Combat’},{id:‘phases’,label:‘🔄 Phases’},{id:‘loot’,label:‘💰 Loot’}];
+return`<button class="btn btn-sm" style="margin-bottom:12px" onclick="STATE.villainTab=null;render()">← Back</button>
+
+  <div class="card-glow" style="border-color:${v.color}60;background:linear-gradient(135deg,${v.color}12,rgba(5,4,18,0.98));margin-bottom:12px">
+    <div style="font-size:2.5rem;margin-bottom:6px">${v.icon}</div>
+    <div style="font-weight:bold;font-size:1.05rem;color:#fff;letter-spacing:1px">${esc(v.name)}</div>
+    <div style="font-size:0.7rem;color:${v.color};font-style:italic;margin:4px 0;font-family:Arial,sans-serif">${esc(v.title)}</div>
+    <div style="font-size:0.7rem;color:#aaa;font-style:italic;margin-top:8px;font-family:Arial,sans-serif">"${esc(v.tagline)}"</div>
+  </div>
+  <div class="lore-tab-bar">${secs.map(s=>`<button class="lore-tab${STATE.villainSec===s.id?' active':''}" onclick="STATE.villainSec='${s.id}';render()" style="${STATE.villainSec===s.id?'border-color:'+v.color+';color:'+v.color:''}">${s.label}</button>`).join('')}</div>
+  <div class="card">
+    ${STATE.villainSec==='lore'?`<div class="section-title">History</div><p style="font-size:0.74rem;color:var(--dim);line-height:1.7;font-family:Arial,sans-serif;margin-bottom:12px">${esc(v.lore)}</p><div style="height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);margin-bottom:12px"></div><div class="section-title">Motivation</div><p style="font-size:0.74rem;color:var(--dim);line-height:1.7;font-family:Arial,sans-serif">${esc(v.motivation)}</p>`:''}
+    ${STATE.villainSec==='combat'?`<div class="section-title">Strengths</div>${v.strengths.map(s=>`<div style="display:flex;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.73rem;color:var(--text);font-family:Arial,sans-serif"><span style="color:var(--green);flex-shrink:0">▲</span>${esc(s)}</div>`).join('')}<div style="height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);margin:12px 0"></div><div class="section-title">Weaknesses</div>${v.weaknesses.map(w=>`<div style="display:flex;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.73rem;color:var(--text);font-family:Arial,sans-serif"><span style="color:var(--red);flex-shrink:0">▼</span>${esc(w)}</div>`).join('')}`:''}
+    ${STATE.villainSec==='phases'?v.phases.map(ph=>`<div style="background:${ph.color}10;border:1px solid ${ph.color}40;border-radius:8px;padding:12px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px"><div style="font-weight:bold;color:${ph.color};font-size:0.88rem">Phase ${ph.phase} — ${esc(ph.name)}</div><div style="width:10px;height:10px;border-radius:50%;background:${ph.color};box-shadow:0 0 6px ${ph.color};flex-shrink:0;margin-top:3px"></div></div><div style="font-size:0.62rem;color:#888;font-family:Arial,sans-serif;margin-bottom:4px">${esc(ph.hp)}</div><div style="font-size:0.73rem;color:var(--text);font-family:Arial,sans-serif">${esc(ph.desc)}</div></div>`).join(''):''}
+    ${STATE.villainSec==='loot'?`<div class="section-title">Loot Drop Table</div>${v.loot.map(l=>`<div style="padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><div style="display:flex;justify-content:space-between;align-items:flex-start"><span style="font-size:0.76rem;color:var(--text);font-family:Arial,sans-serif;flex:1">${esc(l.item)}</span><span style="font-size:0.86rem;font-weight:bold;font-family:Arial,sans-serif;margin-left:10px;flex-shrink:0;color:${l.chance.includes('100')?'var(--gold)':parseInt(l.chance)>=60?'var(--green)':parseInt(l.chance)>=35?'var(--gold)':'var(--blue)'}">${esc(l.chance)}</span></div></div>`).join('')}`:''}
+  </div>`;
 }
 
 // ═══════════════════════════════════════════════════
@@ -1524,7 +2131,11 @@ render();
 }
 
 // Boot
+if (document.readyState === ‘loading’) {
+document.addEventListener(‘DOMContentLoaded’, render);
+} else {
 render();
+}
 </script>
 
 </body>
