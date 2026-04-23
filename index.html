@@ -3,11 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>S.Y.N.A.P.S.E. Engine - Lorenz Attractor</title>
+    <title>RobCo OS - Peak CRT Build</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #010103; font-family: sans-serif; user-select: none; -webkit-user-select: none; }
+        body { margin: 0; overflow: hidden; background-color: #020402; font-family: monospace; user-select: none; -webkit-user-select: none; }
         canvas { display: block; }
-        #ui { position: absolute; top: 20px; left: 20px; color: rgba(255,255,255,0.4); pointer-events: none; z-index: 10; font-size: 11px; letter-spacing: 1.5px; }
+        
+        #ui { position: absolute; top: 20px; left: 20px; color: #4af626; pointer-events: none; z-index: 10; font-size: 11px; letter-spacing: 2px; text-shadow: 0 0 5px #4af626; }
+        
+        #crt-overlay {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            background-size: 100% 3px, 3px 100%;
+            pointer-events: none; z-index: 5; mix-blend-mode: overlay;
+        }
     </style>
 
     <script type="importmap">
@@ -20,7 +28,8 @@
     </script>
 </head>
 <body>
-    <div id="ui">SYSTEM ONLINE // LORENZ ATTRACTOR // 1M PARTICLES</div>
+    <div id="crt-overlay"></div>
+    <div id="ui">ROBCO OS // GPU TYPING ENGINE ACTIVE</div>
     
     <script type="module">
         import * as THREE from 'three';
@@ -28,12 +37,10 @@
 
         // --- 1. Scene Setup ---
         const scene = new THREE.Scene();
-        scene.fog = new THREE.FogExp2(0x010103, 0.015);
+        
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 50);
 
-        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, -10, 35); // Adjusted camera to frame the Lorenz shape
-
-        // High-performance mobile WebGL settings
         const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(1); 
@@ -42,174 +49,200 @@
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
+        controls.enablePan = false;
 
-        // --- 2. Interactive Raycaster (Touch Repulsion) ---
-        const raycaster = new THREE.Raycaster();
-        const mouse = new THREE.Vector2();
-        const interactPlane = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshBasicMaterial({ visible: false }));
-        scene.add(interactPlane);
+        // --- 2. Precision Data Extractor ---
+        function generateTerminalData() {
+            const canvas = document.createElement('canvas');
+            const cw = 1024; 
+            const ch = 1024;
+            canvas.width = cw; 
+            canvas.height = ch;
+            const ctx = canvas.getContext('2d');
 
-        const targetMouse3D = new THREE.Vector3(0, 0, 0);
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, cw, ch);
+            
+            // Draw with sub-pixel anti-aliasing off for sharp edges
+            ctx.imageSmoothingEnabled = false;
+            ctx.fillStyle = '#FFFFFF';
+            
+            ctx.font = 'bold 30px Courier New, monospace';
+            ctx.fillText("ROBCO INDUSTRIES UNIFIED OPERATING SYSTEM", 60, 120);
+            ctx.fillText("COPYRIGHT 2075-2077 ROBCO INDUSTRIES", 60, 160);
+            ctx.fillText("-Server 1-", 60, 200);
+            
+            ctx.font = '22px Courier New, monospace';
+            ctx.fillText("Compiling system memory...", 60, 280);
+            ctx.fillText("System load................... OK", 60, 320);
+            ctx.fillText("V.A.T.S. Targeting............ ONLINE", 60, 360);
+            ctx.fillText("Pip-OS v7.1.0.8............... VERIFIED", 60, 400);
+            ctx.fillText("Connecting to mainframe....... SECURE", 60, 440);
+            
+            ctx.font = 'bold 26px Courier New, monospace';
+            ctx.fillText("> OVERRIDE PROTOCOL AUTHORIZED_", 60, 540);
 
-        function updateMouse(event) {
-            let clientX = event.touches ? event.touches[0].clientX : event.clientX;
-            let clientY = event.touches ? event.touches[0].clientY : event.clientY;
-            mouse.x = (clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+            return ctx.getImageData(0, 0, cw, ch).data;
+        }
 
-            raycaster.setFromCamera(mouse, camera);
-            const intersects = raycaster.intersectObject(interactPlane);
-            if (intersects.length > 0) {
-                targetMouse3D.copy(intersects[0].point);
+        const imgData = generateTerminalData();
+        const positions = [];
+        const phases = [];
+        const revealOrders = [];
+        
+        const cw = 1024;
+        const ch = 1024;
+        const step = 2; // Phosphor grid density
+        
+        let particleIndex = 0;
+
+        for (let y = 0; y < ch; y += step) {
+            for (let x = 0; x < cw; x += step) {
+                const index = (y * cw + x) * 4;
+                const r = imgData[index];
+
+                if (r > 100) { 
+                    // Snap to rigid grid
+                    const nx = (x / cw) * 2 - 1;
+                    const ny = -(y / ch) * 2 + 1;
+                    
+                    const spreadX = nx * 32;
+                    const spreadY = ny * 32;
+
+                    // Intense CRT Glass Curvature
+                    const crtCurvature = 5.0;
+                    const spreadZ = -((nx * nx) + (ny * ny)) * crtCurvature;
+
+                    positions.push(spreadX, spreadY, spreadZ);
+                    phases.push(Math.random() * Math.PI * 2); 
+                    
+                    // The chronological order this pixel was scanned (Top to Bottom, Left to Right)
+                    revealOrders.push(particleIndex);
+                    particleIndex++;
+                }
             }
         }
 
-        window.addEventListener('mousemove', updateMouse);
-        window.addEventListener('touchmove', updateMouse, { passive: true });
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setAttribute('phase', new THREE.Float32BufferAttribute(phases, 1));
+        geometry.setAttribute('revealOrder', new THREE.Float32BufferAttribute(revealOrders, 1));
 
-        // --- 3. Particle Texture ---
-        function createParticleTexture() {
+        // --- 3. Elite CRT Shader (Typing + Vignette + Glitch) ---
+        function createPhosphorTexture() {
             const canvas = document.createElement('canvas');
             canvas.width = 16; canvas.height = 16; 
             const ctx = canvas.getContext('2d');
-            const gradient = ctx.createRadialGradient(8, 8, 0, 8, 8, 8);
-            gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
-            gradient.addColorStop(0.3, 'rgba(255, 255, 255, 0.5)');
-            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
-            ctx.fillStyle = gradient;
+            // Square texture to mimic physical CRT phosphors instead of round orbs
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.fillRect(2, 2, 12, 12);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
             ctx.fillRect(0, 0, 16, 16);
             return new THREE.CanvasTexture(canvas);
         }
 
-        // --- 4. Custom Shader Material ---
         const uniforms = {
             uTime: { value: 0.0 },
-            uMouse3D: { value: new THREE.Vector3(0, 0, 0) },
-            pointTexture: { value: createParticleTexture() }
+            pointTexture: { value: createPhosphorTexture() },
+            uBaseColor: { value: new THREE.Color(0x4af626) } 
         };
 
         const shaderMaterial = new THREE.ShaderMaterial({
             uniforms: uniforms,
             vertexShader: `
                 precision mediump float;
-                
                 uniform float uTime;
-                uniform vec3 uMouse3D;
                 
-                attribute float size;
-                attribute vec3 customColor;
-                attribute float phase; // Random offset for organic breathing
+                attribute float phase;
+                attribute float revealOrder;
                 
-                varying vec3 vColor;
+                varying float vOpacity;
+                varying vec2 vUv;
+                varying vec3 vPos;
 
                 void main() {
-                    vColor = customColor;
                     vec3 pos = position;
+                    vPos = pos;
                     
-                    // Fluid Dynamics: Mouse Repulsion
-                    float dist = distance(pos, uMouse3D);
-                    if(dist < 8.0) {
-                        vec3 pushDir = normalize(pos - uMouse3D);
-                        float pushStrength = (8.0 - dist) * 0.6;
-                        pos += pushDir * pushStrength;
-                    }
-
-                    // Ambient drifting to make the static shape feel alive
-                    pos.x += sin(uTime * 1.5 + phase) * 0.15;
-                    pos.y += cos(uTime * 1.2 + phase) * 0.15;
-                    pos.z += sin(uTime * 1.8 + phase) * 0.15;
+                    // Hardware Jitter
+                    float glitch = step(0.99, sin(uTime * 3.0 + phase)) * sin(uTime * 40.0) * 0.3;
+                    pos.x += glitch;
 
                     vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-                    gl_PointSize = size * (250.0 / -mvPosition.z);
+                    
+                    // GPU TYPING ENGINE: Hides particles until uTime catches up to their revealOrder
+                    float typeSpeed = 15000.0; // Particles revealed per second
+                    float isVisible = step(revealOrder, uTime * typeSpeed);
+                    
+                    // Distant particles are slightly smaller
+                    gl_PointSize = isVisible * (100.0 / -mvPosition.z);
+                    
+                    // Rolling scanline logic
+                    vOpacity = 0.7 + 0.3 * sin(pos.y * 12.0 - uTime * 20.0);
+                    vOpacity *= isVisible;
+                    
                     gl_Position = projectionMatrix * mvPosition;
                 }
             `,
             fragmentShader: `
                 precision mediump float;
-                
                 uniform sampler2D pointTexture;
-                varying vec3 vColor;
+                uniform vec3 uBaseColor;
+                
+                varying float vOpacity;
+                varying vec3 vPos;
+
                 void main() {
-                    gl_FragColor = vec4(vColor, 0.9) * texture2D(pointTexture, gl_PointCoord);
+                    // Vignette: Darken edges based on distance from center (vPos.x and vPos.y)
+                    float distFromCenter = length(vPos.xy) / 25.0;
+                    float vignette = smoothstep(1.2, 0.4, distFromCenter);
+                    
+                    // Chromatic separation simulation (tint edges slightly blue/red)
+                    vec3 finalColor = uBaseColor;
+                    if(distFromCenter > 0.6) {
+                        finalColor.r += (distFromCenter - 0.6) * 0.5;
+                        finalColor.b += (distFromCenter - 0.6) * 0.5;
+                    }
+
+                    gl_FragColor = vec4(finalColor, vOpacity * vignette) * texture2D(pointTexture, gl_PointCoord);
                 }
             `,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
-            depthTest: false, 
+            depthTest: false,
             transparent: true
         });
 
-        // --- 5. Lorenz System Data Generation ---
-        const particleCount = 1000000; 
-        const geometry = new THREE.BufferGeometry();
-        
-        const positions = new Float32Array(particleCount * 3);
-        const colors = new Float32Array(particleCount * 3);
-        const sizes = new Float32Array(particleCount);
-        const phases = new Float32Array(particleCount);
-
-        // Lorenz Constants
-        let lx = 0.1, ly = 0.1, lz = 0.1;
-        const sigma = 10.0, rho = 28.0, beta = 8.0 / 3.0;
-        const dt = 0.004;
-
-        // Warm up the equations to drop it into the attractor pattern
-        for(let i = 0; i < 1000; i++) {
-            let dx = sigma * (ly - lx) * dt;
-            let dy = (lx * (rho - lz) - ly) * dt;
-            let dz = (lx * ly - beta * lz) * dt;
-            lx += dx; ly += dy; lz += dz;
-        }
-
-        for (let i = 0; i < particleCount; i++) {
-            // Step the differential equations
-            let dx = sigma * (ly - lx) * dt;
-            let dy = (lx * (rho - lz) - ly) * dt;
-            let dz = (lx * ly - beta * lz) * dt;
-            lx += dx; ly += dy; lz += dz;
-
-            // Inject noise to give the mathematical line physical volume
-            const noise = 1.4;
-            const px = lx + (Math.random() - 0.5) * noise;
-            const py = ly + (Math.random() - 0.5) * noise;
-            const pz = lz + (Math.random() - 0.5) * noise;
-
-            const scale = 0.6;
-            positions[i*3] = px * scale;
-            positions[i*3+1] = py * scale;
-            positions[i*3+2] = (pz - 25.0) * scale; // Shift down Z to center the geometry
-
-            // Map color based on Z-axis height (Cyan to Deep Purple)
-            const normalizedZ = pz / 50.0; 
-            const c = new THREE.Color().setHSL(0.5 + normalizedZ * 0.4, 1.0, 0.55);
-            colors[i*3] = c.r; colors[i*3+1] = c.g; colors[i*3+2] = c.b;
-
-            sizes[i] = Math.random() * 0.6 + 0.1;
-            phases[i] = Math.random() * Math.PI * 2;
-        }
-
-        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        geometry.setAttribute('customColor', new THREE.BufferAttribute(colors, 3));
-        geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
-        geometry.setAttribute('phase', new THREE.BufferAttribute(phases, 1));
-
         const particleSystem = new THREE.Points(geometry, shaderMaterial);
-        particleSystem.frustumCulled = false; 
+        particleSystem.frustumCulled = false;
         scene.add(particleSystem);
 
-        // --- 6. Animation Engine ---
+        // --- 4. Interactive Mechanics ---
+        let targetRotX = 0;
+        let targetRotY = 0;
+        const windowHalfX = window.innerWidth / 2;
+        const windowHalfY = window.innerHeight / 2;
+
+        function updateMouse(event) {
+            let clientX = event.touches ? event.touches[0].clientX : event.clientX;
+            let clientY = event.touches ? event.touches[0].clientY : event.clientY;
+            targetRotY = ((clientX - windowHalfX) / windowHalfX) * 0.25;
+            targetRotX = ((clientY - windowHalfY) / windowHalfY) * 0.25;
+        }
+
+        window.addEventListener('mousemove', updateMouse);
+        window.addEventListener('touchmove', updateMouse, { passive: true });
+
+        // --- 5. Core Engine Loop ---
         const clock = new THREE.Clock();
 
         function animate() {
             requestAnimationFrame(animate);
-
             const time = clock.getElapsedTime();
             uniforms.uTime.value = time;
-            uniforms.uMouse3D.value.lerp(targetMouse3D, 0.15);
 
-            // Slowly rotate the entire attractor structure
-            particleSystem.rotation.y = time * 0.1;
-            particleSystem.rotation.x = Math.sin(time * 0.05) * 0.1;
+            particleSystem.rotation.y += (targetRotY - particleSystem.rotation.y) * 0.08;
+            particleSystem.rotation.x += (targetRotX - particleSystem.rotation.x) * 0.08;
             
             controls.update();
             renderer.render(scene, camera);
@@ -221,7 +254,6 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        // Auto-start immediately
         animate();
     </script>
 </body>
