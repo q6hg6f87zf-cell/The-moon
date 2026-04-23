@@ -3,17 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aseniwuche Winewak Nation - Emblem Engine</title>
+    <title>AWN - Cinematic Engine</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #010409; font-family: sans-serif; user-select: none; -webkit-user-select: none; }
+        body { margin: 0; overflow: hidden; background-color: #010203; font-family: sans-serif; user-select: none; -webkit-user-select: none; }
         canvas { display: block; }
         
-        #ui { position: absolute; top: 20px; left: 20px; color: rgba(255, 255, 255, 0.6); pointer-events: none; z-index: 10; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; }
+        #ui { position: absolute; top: 20px; left: 20px; color: rgba(255, 255, 255, 0.5); pointer-events: none; z-index: 10; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; }
         
-        /* Subtle atmospheric gradient overlay */
         #atmosphere {
             position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: radial-gradient(circle at center, rgba(0, 40, 80, 0.1) 0%, rgba(0, 0, 0, 0.4) 100%);
+            background: radial-gradient(circle at center, rgba(0, 30, 60, 0.05) 0%, rgba(0, 0, 0, 0.5) 100%);
             pointer-events: none; z-index: 5;
         }
     </style>
@@ -29,78 +28,83 @@
 </head>
 <body>
     <div id="atmosphere"></div>
-    <div id="ui">ASENIWUCHE WINEWAK NATION // SPIRIT WIND PHYSICS ACTIVE</div>
+    <div id="ui">AWN // ADAPTIVE OPTICS // TAP TO ASSEMBLE</div>
     
     <script type="module">
         import * as THREE from 'three';
-        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-        // --- 1. Scene Setup ---
+        // --- 1. Scene & Camera Setup ---
         const scene = new THREE.Scene();
-        scene.fog = new THREE.FogExp2(0x010409, 0.015);
+        scene.fog = new THREE.FogExp2(0x010203, 0.015);
         
-        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 0, 60);
+        // Camera starts DEEP inside the particle storm for cinematic pull-out
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 10); 
+        let targetCameraZ = 75.0; // The final resting position
 
         const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(1); // Mobile optimization lock
+        renderer.setPixelRatio(1); 
         document.body.appendChild(renderer.domElement);
 
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
-        controls.enablePan = false;
+        // --- 2. Adaptive Post-Processing (Bloom) ---
+        const renderScene = new RenderPass(scene, camera);
+        
+        // Highly optimized mobile bloom pass
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth/2, window.innerHeight/2), 1.5, 0.4, 0.85);
+        bloomPass.threshold = 0.2;
+        bloomPass.strength = 0.5; // Base glow
+        bloomPass.radius = 0.8;
 
-        // --- 2. Emblem Generator & Data Extractor ---
+        const composer = new EffectComposer(renderer);
+        composer.addPass(renderScene);
+        composer.addPass(bloomPass);
+
+        // --- 3. Data Extractor ---
         function generateEmblemData() {
             const canvas = document.createElement('canvas');
             const cw = 1024; const ch = 1024;
             canvas.width = cw; canvas.height = ch;
             const ctx = canvas.getContext('2d');
 
-            // Black background
             ctx.fillStyle = '#000000';
             ctx.fillRect(0, 0, cw, ch);
-            
             ctx.fillStyle = '#FFFFFF';
             ctx.strokeStyle = '#FFFFFF';
 
-            // 1. Draw Crest Clipping Mask
             ctx.save();
             ctx.beginPath();
             ctx.arc(cw/2, ch/2 - 80, 260, 0, Math.PI * 2);
-            ctx.clip(); // Ensure mountains don't bleed out of the circle
+            ctx.clip(); 
 
-            // 2. Draw the Rocky Mountains
             ctx.beginPath();
             ctx.moveTo(cw/2 - 300, ch/2 + 100);
-            ctx.lineTo(cw/2 - 120, ch/2 - 80);  // Peak 1
-            ctx.lineTo(cw/2 - 20, ch/2 + 10);   // Valley
-            ctx.lineTo(cw/2 + 80, ch/2 - 140);  // Peak 2 (Highest)
-            ctx.lineTo(cw/2 + 160, ch/2 - 20);  // Valley
-            ctx.lineTo(cw/2 + 300, ch/2 + 100); // Peak 3
+            ctx.lineTo(cw/2 - 120, ch/2 - 80);  
+            ctx.lineTo(cw/2 - 20, ch/2 + 10);   
+            ctx.lineTo(cw/2 + 80, ch/2 - 140);  
+            ctx.lineTo(cw/2 + 160, ch/2 - 20);  
+            ctx.lineTo(cw/2 + 300, ch/2 + 100); 
             ctx.fill();
 
-            // 3. Draw the Forget-Me-Not (Caribou Conservation Motif)
-            const fx = cw/2 - 80;
-            const fy = ch/2 - 180;
-            for(let i = 0; i < 5; i++) {
-                const angle = (i * Math.PI * 2) / 5;
+            const fx = cw/2;
+            const fy = ch/2 - 190;
+            for(let i = 0; i < 6; i++) {
+                const angle = (i * Math.PI * 2) / 6;
                 ctx.beginPath();
-                ctx.arc(fx + Math.cos(angle)*18, fy + Math.sin(angle)*18, 15, 0, Math.PI*2);
+                ctx.arc(fx + Math.cos(angle)*20, fy + Math.sin(angle)*20, 16, 0, Math.PI*2);
                 ctx.fill();
             }
-            // Cut out center of flower
             ctx.fillStyle = '#000000';
             ctx.beginPath();
             ctx.arc(fx, fy, 8, 0, Math.PI*2);
             ctx.fill();
             ctx.fillStyle = '#FFFFFF';
 
-            ctx.restore(); // Remove clipping mask
+            ctx.restore(); 
 
-            // 4. Draw the Crest Border
             ctx.lineWidth = 14;
             ctx.beginPath();
             ctx.arc(cw/2, ch/2 - 80, 260, 0, Math.PI * 2);
@@ -111,27 +115,26 @@
             ctx.arc(cw/2, ch/2 - 80, 280, 0, Math.PI * 2);
             ctx.stroke();
 
-            // 5. Draw the Nation Title
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
             ctx.font = 'bold 45px "Trebuchet MS", sans-serif';
             ctx.fillText("ASENIWUCHE WINEWAK NATION", cw/2, ch/2 + 260);
             
-            ctx.font = '30px "Trebuchet MS", sans-serif';
-            ctx.fillText("R O C K Y   M O U N T A I N   P E O P L E", cw/2, ch/2 + 320);
+            ctx.font = 'bold 30px "Trebuchet MS", sans-serif'; 
+            ctx.fillText("ROCKY MOUNTAIN PEOPLE", cw/2, ch/2 + 320);
 
             return ctx.getImageData(0, 0, cw, ch).data;
         }
 
         const imgData = generateEmblemData();
-        const positions = [];
+        const posAurora = []; 
+        const posLogo = [];   
         const phases = [];
-        const isStardust = [];
+        const isStardust = []; 
         
         const cw = 1024; const ch = 1024;
-        const step = 2; // High density extraction
+        const step = 2; 
         
-        // Extract the logo into physical particles
         for (let y = 0; y < ch; y += step) {
             for (let x = 0; x < cw; x += step) {
                 const index = (y * cw + x) * 4;
@@ -139,35 +142,50 @@
                     const nx = (x / cw) * 2 - 1;
                     const ny = -(y / ch) * 2 + 1;
                     
-                    positions.push(nx * 35, ny * 35, 0); // Flat monumental alignment
+                    posLogo.push(nx * 40.0, ny * 40.0, 0.0);
+                    
+                    const radius = 20.0 + Math.random() * 45.0;
+                    const theta = Math.random() * Math.PI * 2;
+                    const phi = Math.acos((Math.random() * 2) - 1);
+                    
+                    posAurora.push(
+                        radius * Math.sin(phi) * Math.cos(theta),
+                        radius * Math.sin(phi) * Math.sin(theta),
+                        radius * Math.cos(phi)
+                    );
+                    
                     phases.push(Math.random() * Math.PI * 2); 
-                    isStardust.push(0.0); // Marks as a logo particle
+                    isStardust.push(0.0);
                 }
             }
         }
 
-        // Add drifting environmental stardust / snow
-        for (let i = 0; i < 25000; i++) {
-            positions.push((Math.random() - 0.5) * 120);
-            positions.push((Math.random() - 0.5) * 120);
-            positions.push((Math.random() - 0.5) * 60 - 15); 
+        for (let i = 0; i < 300000; i++) {
+            const ax = (Math.random() - 0.5) * 200;
+            const ay = (Math.random() - 0.5) * 200;
+            const az = (Math.random() - 0.5) * 150 - 50;
+            
+            posAurora.push(ax, ay, az);
+            posLogo.push(ax, ay, az); 
+            
             phases.push(Math.random() * Math.PI * 2);
-            isStardust.push(1.0); // Marks as environmental
+            isStardust.push(1.0);
         }
 
         const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(posAurora, 3)); 
+        geometry.setAttribute('targetPos', new THREE.Float32BufferAttribute(posLogo, 3));  
         geometry.setAttribute('phase', new THREE.Float32BufferAttribute(phases, 1));
         geometry.setAttribute('isStardust', new THREE.Float32BufferAttribute(isStardust, 1));
 
-        // --- 3. Fluid Dynamic Shader ---
+        // --- 4. Fluid Dynamic Shader ---
         function createOrbTexture() {
             const canvas = document.createElement('canvas');
             canvas.width = 16; canvas.height = 16; 
             const ctx = canvas.getContext('2d');
             const gradient = ctx.createRadialGradient(8, 8, 0, 8, 8, 8);
             gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
-            gradient.addColorStop(0.3, 'rgba(255, 255, 255, 0.6)');
+            gradient.addColorStop(0.3, 'rgba(255, 255, 255, 0.5)');
             gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
             ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, 16, 16);
@@ -177,6 +195,7 @@
         const uniforms = {
             uTime: { value: 0.0 },
             uMouse: { value: new THREE.Vector2(999, 999) },
+            uMorphProgress: { value: 0.0 },
             pointTexture: { value: createOrbTexture() }
         };
 
@@ -186,56 +205,69 @@
                 precision mediump float;
                 uniform float uTime;
                 uniform vec2 uMouse;
+                uniform float uMorphProgress;
                 
                 attribute float phase;
+                attribute vec3 targetPos;
                 attribute float isStardust;
                 
                 varying float vOpacity;
-                varying vec3 vAnchor;
+                varying vec3 vColorData; 
                 varying float vIsStardust;
 
+                vec3 turbulence(vec3 p) {
+                    float t = uTime * 0.4;
+                    float x = sin(p.y * 0.1 + t) * cos(p.z * 0.1 + phase);
+                    float y = sin(p.z * 0.1 + t) * cos(p.x * 0.1 + phase);
+                    float z = sin(p.x * 0.1 + t) * cos(p.y * 0.1 + phase);
+                    return vec3(x, y, z);
+                }
+
                 void main() {
-                    vec3 anchor = position;
-                    vAnchor = anchor;
                     vIsStardust = isStardust;
-                    vec3 pos = anchor;
+                    vec3 auroraPos = position;
+                    vec3 crestPos = targetPos;
+                    vec3 currentPos;
                     
                     if (isStardust < 0.5) {
-                        // SPIRIT WIND: Slow, majestic breathing for the logo
-                        float wind = sin(anchor.x * 0.15 + uTime * 0.8) * cos(anchor.y * 0.15 + uTime * 0.5);
-                        pos.z += wind * 1.5;
-                        pos.x += sin(uTime * 0.5 + phase) * 0.2;
-                        pos.y += cos(uTime * 0.4 + phase) * 0.2;
+                        vec3 wind = turbulence(auroraPos) * 10.0;
+                        auroraPos += wind;
+                        
+                        crestPos.z += sin(crestPos.x * 0.1 + uTime * 1.5) * 2.0;
 
-                        // FLUID VORTEX (Touch Interaction)
-                        vec2 mappedMouse = uMouse * 45.0;
-                        float dist = distance(anchor.xy, mappedMouse);
-                        float force = smoothstep(12.0, 0.0, dist);
+                        float individualMorph = clamp(uMorphProgress * 1.2 - (phase * 0.03), 0.0, 1.0);
+                        float p = individualMorph;
+                        float ease = p < 0.5 ? 2.0 * p * p : -1.0 + (4.0 - 2.0 * p) * p;
+                        
+                        currentPos = mix(auroraPos, crestPos, ease);
+
+                        vec2 mappedMouse = uMouse * 55.0;
+                        float dist = distance(currentPos.xy, mappedMouse);
+                        float force = smoothstep(20.0, 0.0, dist);
                         
                         if (force > 0.0) {
-                            // Swirl the particles like a snowstorm
-                            float angle = atan(anchor.y - mappedMouse.y, anchor.x - mappedMouse.x);
-                            angle += force * 2.5; 
-                            
-                            vec2 swirlDir = vec2(cos(angle), sin(angle));
-                            pos.xy += swirlDir * force * 15.0;
-                            pos.z += force * 10.0;
+                            float angle = atan(currentPos.y - mappedMouse.y, currentPos.x - mappedMouse.x);
+                            angle += force * 5.0; 
+                            currentPos.xy += vec2(cos(angle), sin(angle)) * force * 22.0;
+                            currentPos.z += force * 18.0;
                         }
-                        vOpacity = 0.5 + 0.5 * sin(uTime * 1.5 + phase * 5.0);
+
+                        vColorData = vec3(crestPos.y, ease, force);
+                        vOpacity = 0.5 + 0.5 * sin(uTime * 2.0 + phase);
                     } else {
-                        // ENVIRONMENTAL DRIFT
-                        pos.x += sin(uTime * 0.1 + phase) * 10.0;
-                        pos.y -= uTime * 2.0; // Gentle falling snow
-                        // Loop the snow back to the top
-                        pos.y = mod(pos.y + 60.0, 120.0) - 60.0;
-                        vOpacity = 0.2 + 0.3 * sin(uTime + phase);
+                        currentPos = auroraPos;
+                        currentPos.y -= uTime * 2.5;
+                        currentPos.y = mod(currentPos.y + 100.0, 200.0) - 100.0;
+                        currentPos.x += sin(uTime * 0.15 + phase) * 6.0;
+                        vColorData = vec3(0.0);
+                        vOpacity = 0.1 + 0.2 * sin(uTime + phase);
                     }
 
-                    vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                    vec4 mvPosition = modelViewMatrix * vec4(currentPos, 1.0);
                     
-                    // Sizing
-                    float baseSize = isStardust < 0.5 ? 120.0 : 80.0;
-                    gl_PointSize = baseSize / -mvPosition.z;
+                    float interactionScale = isStardust < 0.5 ? (vColorData.z * 60.0) : 0.0;
+                    float baseSize = isStardust < 0.5 ? 130.0 : 70.0;
+                    gl_PointSize = (baseSize + interactionScale) / -mvPosition.z;
                     
                     gl_Position = projectionMatrix * mvPosition;
                 }
@@ -245,28 +277,36 @@
                 uniform sampler2D pointTexture;
                 
                 varying float vOpacity;
-                varying vec3 vAnchor;
+                varying vec3 vColorData;
                 varying float vIsStardust;
 
                 void main() {
                     vec3 finalColor;
                     
                     if (vIsStardust < 0.5) {
-                        // LOGO GRADIENT (Forget-Me-Not Blue to Majestic Earth Green/Teal)
-                        float normalizedY = clamp((vAnchor.y + 15.0) / 30.0, 0.0, 1.0);
-                        vec3 colorTop = vec3(0.1, 0.6, 1.0);    // Glacier Blue
-                        vec3 colorBottom = vec3(0.0, 0.8, 0.5); // Forest / Earth Green
-                        vec3 colorText = vec3(1.0, 0.85, 0.4);  // Golden Amber for the Nation Text
+                        float crestY = vColorData.x;
+                        float ease = vColorData.y;
+                        float force = vColorData.z;
                         
-                        finalColor = mix(colorBottom, colorTop, normalizedY);
+                        vec3 colorAurora1 = vec3(0.0, 1.0, 0.5); 
+                        vec3 colorAurora2 = vec3(0.1, 0.3, 1.0); 
                         
-                        // Override color for the text at the bottom
-                        if (vAnchor.y < -5.0) {
-                            finalColor = colorText;
-                        }
+                        vec3 colorGlacier = vec3(0.1, 0.8, 1.0);     
+                        vec3 colorEarth = vec3(0.0, 0.6, 0.4);      
+                        vec3 colorGold = vec3(1.0, 0.8, 0.2); 
+                        
+                        float auroraMix = sin(crestY * 0.1) * 0.5 + 0.5;
+                        vec3 auroraColor = mix(colorAurora2, colorAurora1, auroraMix);
+
+                        float normalizedY = clamp((crestY + 20.0) / 40.0, 0.0, 1.0);
+                        vec3 crestColor = mix(colorEarth, colorGlacier, normalizedY);
+                        if (crestY < -10.0) crestColor = colorGold; 
+                        
+                        finalColor = mix(auroraColor, crestColor, ease);
+                        finalColor = mix(finalColor, vec3(1.0, 1.0, 1.0), force * 0.9);
+                        
                     } else {
-                        // STARDUST / SNOW (Icy White)
-                        finalColor = vec3(0.8, 0.9, 1.0);
+                        finalColor = vec3(0.7, 0.8, 1.0);
                     }
 
                     gl_FragColor = vec4(finalColor, vOpacity) * texture2D(pointTexture, gl_PointCoord);
@@ -282,9 +322,12 @@
         particleSystem.frustumCulled = false;
         scene.add(particleSystem);
 
-        // --- 4. Interactive Mechanics ---
-        let targetRotX = 0;
-        let targetRotY = 0;
+        // --- 5. High-Inertia Mechanics ---
+        let currentRotX = 0; let currentRotY = 0;
+        let targetRotX = 0;  let targetRotY = 0;
+        let isLogoState = false;
+        let targetMorph = 0.0;
+        let targetBloom = 0.5;
         const windowHalfX = window.innerWidth / 2;
         const windowHalfY = window.innerHeight / 2;
 
@@ -292,8 +335,8 @@
             let clientX = event.touches ? event.touches[0].clientX : event.clientX;
             let clientY = event.touches ? event.touches[0].clientY : event.clientY;
             
-            targetRotY = ((clientX - windowHalfX) / windowHalfX) * 0.15;
-            targetRotX = ((clientY - windowHalfY) / windowHalfY) * 0.15;
+            targetRotY = ((clientX - windowHalfX) / windowHalfX) * 0.2;
+            targetRotX = ((clientY - windowHalfY) / windowHalfY) * 0.2;
 
             uniforms.uMouse.value.x = (clientX / window.innerWidth) * 2 - 1;
             uniforms.uMouse.value.y = -(clientY / window.innerHeight) * 2 + 1;
@@ -302,14 +345,28 @@
         function resetMouse() {
             uniforms.uMouse.value.x = 999;
             uniforms.uMouse.value.y = 999;
+            targetRotX = 0; targetRotY = 0;
+        }
+
+        function toggleMorph() {
+             isLogoState = !isLogoState;
+             targetMorph = isLogoState ? 1.0 : 0.0;
+             targetBloom = 2.5; // Spike bloom on impact
+             
+             document.getElementById('ui').innerText = isLogoState 
+                ? "AWN // CREST LOCKED // TAP TO SHATTER" 
+                : "AWN // STORM NEBULA ACTIVE // TAP TO ASSEMBLE";
         }
 
         window.addEventListener('mousemove', updateMouse);
         window.addEventListener('touchmove', updateMouse, { passive: true });
         window.addEventListener('mouseleave', resetMouse);
         window.addEventListener('touchend', resetMouse);
+        
+        window.addEventListener('mousedown', toggleMorph);
+        window.addEventListener('touchstart', toggleMorph, { passive: true });
 
-        // --- 5. Core Engine Loop ---
+        // --- 6. Core Engine Loop ---
         const clock = new THREE.Clock();
 
         function animate() {
@@ -317,17 +374,39 @@
             const time = clock.getElapsedTime();
             uniforms.uTime.value = time;
 
-            // Smooth parallax
-            particleSystem.rotation.y += (targetRotY - particleSystem.rotation.y) * 0.05;
-            particleSystem.rotation.x += (targetRotX - particleSystem.rotation.x) * 0.05;
+            // 1. Camera Cinematic Fly-Through
+            camera.position.z += (targetCameraZ - camera.position.z) * 0.02;
+
+            // 2. Adaptive Bloom Cooling
+            bloomPass.strength += (0.5 - bloomPass.strength) * 0.03; // Slowly cools back to base 0.5
+            if(targetBloom > 0.5) {
+                bloomPass.strength = targetBloom;
+                targetBloom = 0.5; // Reset trigger
+            }
+
+            // 3. Morph State
+            uniforms.uMorphProgress.value += (targetMorph - uniforms.uMorphProgress.value) * 0.04;
+
+            // 4. Heavy Inertial Drag on Rotation
+            currentRotX += (targetRotX - currentRotX) * 0.03;
+            currentRotY += (targetRotY - currentRotY) * 0.03;
+
+            if (!isLogoState) {
+                particleSystem.rotation.y += 0.003;
+                particleSystem.rotation.x += 0.001;
+            } else {
+                particleSystem.rotation.y = currentRotY;
+                particleSystem.rotation.x = currentRotX;
+            }
             
-            renderer.render(scene, camera);
+            composer.render();
         }
 
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
         });
 
         animate();
