@@ -3,18 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RobCo OS - Peak CRT Build</title>
+    <title>Aseniwuche Winewak Nation - Emblem Engine</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #020402; font-family: monospace; user-select: none; -webkit-user-select: none; }
+        body { margin: 0; overflow: hidden; background-color: #010409; font-family: sans-serif; user-select: none; -webkit-user-select: none; }
         canvas { display: block; }
         
-        #ui { position: absolute; top: 20px; left: 20px; color: #4af626; pointer-events: none; z-index: 10; font-size: 11px; letter-spacing: 2px; text-shadow: 0 0 5px #4af626; }
+        #ui { position: absolute; top: 20px; left: 20px; color: rgba(255, 255, 255, 0.6); pointer-events: none; z-index: 10; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; }
         
-        #crt-overlay {
+        /* Subtle atmospheric gradient overlay */
+        #atmosphere {
             position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
-            background-size: 100% 3px, 3px 100%;
-            pointer-events: none; z-index: 5; mix-blend-mode: overlay;
+            background: radial-gradient(circle at center, rgba(0, 40, 80, 0.1) 0%, rgba(0, 0, 0, 0.4) 100%);
+            pointer-events: none; z-index: 5;
         }
     </style>
 
@@ -28,8 +28,8 @@
     </script>
 </head>
 <body>
-    <div id="crt-overlay"></div>
-    <div id="ui">ROBCO OS // GPU TYPING ENGINE ACTIVE</div>
+    <div id="atmosphere"></div>
+    <div id="ui">ASENIWUCHE WINEWAK NATION // SPIRIT WIND PHYSICS ACTIVE</div>
     
     <script type="module">
         import * as THREE from 'three';
@@ -37,13 +37,14 @@
 
         // --- 1. Scene Setup ---
         const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x010409, 0.015);
         
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 0, 50);
+        camera.position.set(0, 0, 60);
 
         const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(1); 
+        renderer.setPixelRatio(1); // Mobile optimization lock
         document.body.appendChild(renderer.domElement);
 
         const controls = new OrbitControls(camera, renderer.domElement);
@@ -51,100 +52,132 @@
         controls.dampingFactor = 0.05;
         controls.enablePan = false;
 
-        // --- 2. Precision Data Extractor ---
-        function generateTerminalData() {
+        // --- 2. Emblem Generator & Data Extractor ---
+        function generateEmblemData() {
             const canvas = document.createElement('canvas');
-            const cw = 1024; 
-            const ch = 1024;
-            canvas.width = cw; 
-            canvas.height = ch;
+            const cw = 1024; const ch = 1024;
+            canvas.width = cw; canvas.height = ch;
             const ctx = canvas.getContext('2d');
 
+            // Black background
             ctx.fillStyle = '#000000';
             ctx.fillRect(0, 0, cw, ch);
             
-            // Draw with sub-pixel anti-aliasing off for sharp edges
-            ctx.imageSmoothingEnabled = false;
             ctx.fillStyle = '#FFFFFF';
+            ctx.strokeStyle = '#FFFFFF';
+
+            // 1. Draw Crest Clipping Mask
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(cw/2, ch/2 - 80, 260, 0, Math.PI * 2);
+            ctx.clip(); // Ensure mountains don't bleed out of the circle
+
+            // 2. Draw the Rocky Mountains
+            ctx.beginPath();
+            ctx.moveTo(cw/2 - 300, ch/2 + 100);
+            ctx.lineTo(cw/2 - 120, ch/2 - 80);  // Peak 1
+            ctx.lineTo(cw/2 - 20, ch/2 + 10);   // Valley
+            ctx.lineTo(cw/2 + 80, ch/2 - 140);  // Peak 2 (Highest)
+            ctx.lineTo(cw/2 + 160, ch/2 - 20);  // Valley
+            ctx.lineTo(cw/2 + 300, ch/2 + 100); // Peak 3
+            ctx.fill();
+
+            // 3. Draw the Forget-Me-Not (Caribou Conservation Motif)
+            const fx = cw/2 - 80;
+            const fy = ch/2 - 180;
+            for(let i = 0; i < 5; i++) {
+                const angle = (i * Math.PI * 2) / 5;
+                ctx.beginPath();
+                ctx.arc(fx + Math.cos(angle)*18, fy + Math.sin(angle)*18, 15, 0, Math.PI*2);
+                ctx.fill();
+            }
+            // Cut out center of flower
+            ctx.fillStyle = '#000000';
+            ctx.beginPath();
+            ctx.arc(fx, fy, 8, 0, Math.PI*2);
+            ctx.fill();
+            ctx.fillStyle = '#FFFFFF';
+
+            ctx.restore(); // Remove clipping mask
+
+            // 4. Draw the Crest Border
+            ctx.lineWidth = 14;
+            ctx.beginPath();
+            ctx.arc(cw/2, ch/2 - 80, 260, 0, Math.PI * 2);
+            ctx.stroke();
             
-            ctx.font = 'bold 30px Courier New, monospace';
-            ctx.fillText("ROBCO INDUSTRIES UNIFIED OPERATING SYSTEM", 60, 120);
-            ctx.fillText("COPYRIGHT 2075-2077 ROBCO INDUSTRIES", 60, 160);
-            ctx.fillText("-Server 1-", 60, 200);
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(cw/2, ch/2 - 80, 280, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // 5. Draw the Nation Title
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.font = 'bold 45px "Trebuchet MS", sans-serif';
+            ctx.fillText("ASENIWUCHE WINEWAK NATION", cw/2, ch/2 + 260);
             
-            ctx.font = '22px Courier New, monospace';
-            ctx.fillText("Compiling system memory...", 60, 280);
-            ctx.fillText("System load................... OK", 60, 320);
-            ctx.fillText("V.A.T.S. Targeting............ ONLINE", 60, 360);
-            ctx.fillText("Pip-OS v7.1.0.8............... VERIFIED", 60, 400);
-            ctx.fillText("Connecting to mainframe....... SECURE", 60, 440);
-            
-            ctx.font = 'bold 26px Courier New, monospace';
-            ctx.fillText("> OVERRIDE PROTOCOL AUTHORIZED_", 60, 540);
+            ctx.font = '30px "Trebuchet MS", sans-serif';
+            ctx.fillText("R O C K Y   M O U N T A I N   P E O P L E", cw/2, ch/2 + 320);
 
             return ctx.getImageData(0, 0, cw, ch).data;
         }
 
-        const imgData = generateTerminalData();
+        const imgData = generateEmblemData();
         const positions = [];
         const phases = [];
-        const revealOrders = [];
+        const isStardust = [];
         
-        const cw = 1024;
-        const ch = 1024;
-        const step = 2; // Phosphor grid density
+        const cw = 1024; const ch = 1024;
+        const step = 2; // High density extraction
         
-        let particleIndex = 0;
-
+        // Extract the logo into physical particles
         for (let y = 0; y < ch; y += step) {
             for (let x = 0; x < cw; x += step) {
                 const index = (y * cw + x) * 4;
-                const r = imgData[index];
-
-                if (r > 100) { 
-                    // Snap to rigid grid
+                if (imgData[index] > 100) { 
                     const nx = (x / cw) * 2 - 1;
                     const ny = -(y / ch) * 2 + 1;
                     
-                    const spreadX = nx * 32;
-                    const spreadY = ny * 32;
-
-                    // Intense CRT Glass Curvature
-                    const crtCurvature = 5.0;
-                    const spreadZ = -((nx * nx) + (ny * ny)) * crtCurvature;
-
-                    positions.push(spreadX, spreadY, spreadZ);
+                    positions.push(nx * 35, ny * 35, 0); // Flat monumental alignment
                     phases.push(Math.random() * Math.PI * 2); 
-                    
-                    // The chronological order this pixel was scanned (Top to Bottom, Left to Right)
-                    revealOrders.push(particleIndex);
-                    particleIndex++;
+                    isStardust.push(0.0); // Marks as a logo particle
                 }
             }
+        }
+
+        // Add drifting environmental stardust / snow
+        for (let i = 0; i < 25000; i++) {
+            positions.push((Math.random() - 0.5) * 120);
+            positions.push((Math.random() - 0.5) * 120);
+            positions.push((Math.random() - 0.5) * 60 - 15); 
+            phases.push(Math.random() * Math.PI * 2);
+            isStardust.push(1.0); // Marks as environmental
         }
 
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
         geometry.setAttribute('phase', new THREE.Float32BufferAttribute(phases, 1));
-        geometry.setAttribute('revealOrder', new THREE.Float32BufferAttribute(revealOrders, 1));
+        geometry.setAttribute('isStardust', new THREE.Float32BufferAttribute(isStardust, 1));
 
-        // --- 3. Elite CRT Shader (Typing + Vignette + Glitch) ---
-        function createPhosphorTexture() {
+        // --- 3. Fluid Dynamic Shader ---
+        function createOrbTexture() {
             const canvas = document.createElement('canvas');
             canvas.width = 16; canvas.height = 16; 
             const ctx = canvas.getContext('2d');
-            // Square texture to mimic physical CRT phosphors instead of round orbs
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-            ctx.fillRect(2, 2, 12, 12);
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            const gradient = ctx.createRadialGradient(8, 8, 0, 8, 8, 8);
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            gradient.addColorStop(0.3, 'rgba(255, 255, 255, 0.6)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, 16, 16);
             return new THREE.CanvasTexture(canvas);
         }
 
         const uniforms = {
             uTime: { value: 0.0 },
-            pointTexture: { value: createPhosphorTexture() },
-            uBaseColor: { value: new THREE.Color(0x4af626) } 
+            uMouse: { value: new THREE.Vector2(999, 999) },
+            pointTexture: { value: createOrbTexture() }
         };
 
         const shaderMaterial = new THREE.ShaderMaterial({
@@ -152,34 +185,57 @@
             vertexShader: `
                 precision mediump float;
                 uniform float uTime;
+                uniform vec2 uMouse;
                 
                 attribute float phase;
-                attribute float revealOrder;
+                attribute float isStardust;
                 
                 varying float vOpacity;
-                varying vec2 vUv;
-                varying vec3 vPos;
+                varying vec3 vAnchor;
+                varying float vIsStardust;
 
                 void main() {
-                    vec3 pos = position;
-                    vPos = pos;
+                    vec3 anchor = position;
+                    vAnchor = anchor;
+                    vIsStardust = isStardust;
+                    vec3 pos = anchor;
                     
-                    // Hardware Jitter
-                    float glitch = step(0.99, sin(uTime * 3.0 + phase)) * sin(uTime * 40.0) * 0.3;
-                    pos.x += glitch;
+                    if (isStardust < 0.5) {
+                        // SPIRIT WIND: Slow, majestic breathing for the logo
+                        float wind = sin(anchor.x * 0.15 + uTime * 0.8) * cos(anchor.y * 0.15 + uTime * 0.5);
+                        pos.z += wind * 1.5;
+                        pos.x += sin(uTime * 0.5 + phase) * 0.2;
+                        pos.y += cos(uTime * 0.4 + phase) * 0.2;
+
+                        // FLUID VORTEX (Touch Interaction)
+                        vec2 mappedMouse = uMouse * 45.0;
+                        float dist = distance(anchor.xy, mappedMouse);
+                        float force = smoothstep(12.0, 0.0, dist);
+                        
+                        if (force > 0.0) {
+                            // Swirl the particles like a snowstorm
+                            float angle = atan(anchor.y - mappedMouse.y, anchor.x - mappedMouse.x);
+                            angle += force * 2.5; 
+                            
+                            vec2 swirlDir = vec2(cos(angle), sin(angle));
+                            pos.xy += swirlDir * force * 15.0;
+                            pos.z += force * 10.0;
+                        }
+                        vOpacity = 0.5 + 0.5 * sin(uTime * 1.5 + phase * 5.0);
+                    } else {
+                        // ENVIRONMENTAL DRIFT
+                        pos.x += sin(uTime * 0.1 + phase) * 10.0;
+                        pos.y -= uTime * 2.0; // Gentle falling snow
+                        // Loop the snow back to the top
+                        pos.y = mod(pos.y + 60.0, 120.0) - 60.0;
+                        vOpacity = 0.2 + 0.3 * sin(uTime + phase);
+                    }
 
                     vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
                     
-                    // GPU TYPING ENGINE: Hides particles until uTime catches up to their revealOrder
-                    float typeSpeed = 15000.0; // Particles revealed per second
-                    float isVisible = step(revealOrder, uTime * typeSpeed);
-                    
-                    // Distant particles are slightly smaller
-                    gl_PointSize = isVisible * (100.0 / -mvPosition.z);
-                    
-                    // Rolling scanline logic
-                    vOpacity = 0.7 + 0.3 * sin(pos.y * 12.0 - uTime * 20.0);
-                    vOpacity *= isVisible;
+                    // Sizing
+                    float baseSize = isStardust < 0.5 ? 120.0 : 80.0;
+                    gl_PointSize = baseSize / -mvPosition.z;
                     
                     gl_Position = projectionMatrix * mvPosition;
                 }
@@ -187,24 +243,33 @@
             fragmentShader: `
                 precision mediump float;
                 uniform sampler2D pointTexture;
-                uniform vec3 uBaseColor;
                 
                 varying float vOpacity;
-                varying vec3 vPos;
+                varying vec3 vAnchor;
+                varying float vIsStardust;
 
                 void main() {
-                    // Vignette: Darken edges based on distance from center (vPos.x and vPos.y)
-                    float distFromCenter = length(vPos.xy) / 25.0;
-                    float vignette = smoothstep(1.2, 0.4, distFromCenter);
+                    vec3 finalColor;
                     
-                    // Chromatic separation simulation (tint edges slightly blue/red)
-                    vec3 finalColor = uBaseColor;
-                    if(distFromCenter > 0.6) {
-                        finalColor.r += (distFromCenter - 0.6) * 0.5;
-                        finalColor.b += (distFromCenter - 0.6) * 0.5;
+                    if (vIsStardust < 0.5) {
+                        // LOGO GRADIENT (Forget-Me-Not Blue to Majestic Earth Green/Teal)
+                        float normalizedY = clamp((vAnchor.y + 15.0) / 30.0, 0.0, 1.0);
+                        vec3 colorTop = vec3(0.1, 0.6, 1.0);    // Glacier Blue
+                        vec3 colorBottom = vec3(0.0, 0.8, 0.5); // Forest / Earth Green
+                        vec3 colorText = vec3(1.0, 0.85, 0.4);  // Golden Amber for the Nation Text
+                        
+                        finalColor = mix(colorBottom, colorTop, normalizedY);
+                        
+                        // Override color for the text at the bottom
+                        if (vAnchor.y < -5.0) {
+                            finalColor = colorText;
+                        }
+                    } else {
+                        // STARDUST / SNOW (Icy White)
+                        finalColor = vec3(0.8, 0.9, 1.0);
                     }
 
-                    gl_FragColor = vec4(finalColor, vOpacity * vignette) * texture2D(pointTexture, gl_PointCoord);
+                    gl_FragColor = vec4(finalColor, vOpacity) * texture2D(pointTexture, gl_PointCoord);
                 }
             `,
             blending: THREE.AdditiveBlending,
@@ -226,12 +291,23 @@
         function updateMouse(event) {
             let clientX = event.touches ? event.touches[0].clientX : event.clientX;
             let clientY = event.touches ? event.touches[0].clientY : event.clientY;
-            targetRotY = ((clientX - windowHalfX) / windowHalfX) * 0.25;
-            targetRotX = ((clientY - windowHalfY) / windowHalfY) * 0.25;
+            
+            targetRotY = ((clientX - windowHalfX) / windowHalfX) * 0.15;
+            targetRotX = ((clientY - windowHalfY) / windowHalfY) * 0.15;
+
+            uniforms.uMouse.value.x = (clientX / window.innerWidth) * 2 - 1;
+            uniforms.uMouse.value.y = -(clientY / window.innerHeight) * 2 + 1;
+        }
+
+        function resetMouse() {
+            uniforms.uMouse.value.x = 999;
+            uniforms.uMouse.value.y = 999;
         }
 
         window.addEventListener('mousemove', updateMouse);
         window.addEventListener('touchmove', updateMouse, { passive: true });
+        window.addEventListener('mouseleave', resetMouse);
+        window.addEventListener('touchend', resetMouse);
 
         // --- 5. Core Engine Loop ---
         const clock = new THREE.Clock();
@@ -241,10 +317,10 @@
             const time = clock.getElapsedTime();
             uniforms.uTime.value = time;
 
-            particleSystem.rotation.y += (targetRotY - particleSystem.rotation.y) * 0.08;
-            particleSystem.rotation.x += (targetRotX - particleSystem.rotation.x) * 0.08;
+            // Smooth parallax
+            particleSystem.rotation.y += (targetRotY - particleSystem.rotation.y) * 0.05;
+            particleSystem.rotation.x += (targetRotX - particleSystem.rotation.x) * 0.05;
             
-            controls.update();
             renderer.render(scene, camera);
         }
 
